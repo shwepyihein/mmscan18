@@ -12,6 +12,7 @@ import {
   isPublicSiteUrlHostMismatch,
 } from '@/lib/telegram-domain';
 import { useUserStore } from '@/store/useUserStore';
+import { TransactionHistory } from '@/components/TransactionHistory';
 import {
   AlertTriangle,
   ChevronLeft,
@@ -430,15 +431,19 @@ export default function Profile() {
           <h3 className='text-[10px] font-black text-zinc-600 uppercase tracking-[0.2em] px-2 mb-2'>
             History & Activity
           </h3>
-          <Button
-            variant='ghost'
-            className='justify-start gap-4 text-zinc-400 hover:text-zinc-50 hover:bg-zinc-900 h-14 rounded-2xl px-4'
-          >
-            <div className='w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center'>
-              <Wallet size={18} />
-            </div>
-            <span className='text-sm font-bold'>Transaction History</span>
-          </Button>
+          <TransactionHistory
+            trigger={
+              <Button
+                variant='ghost'
+                className='justify-start gap-4 text-zinc-400 hover:text-zinc-50 hover:bg-zinc-900 h-14 rounded-2xl px-4'
+              >
+                <div className='w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center'>
+                  <Wallet size={18} />
+                </div>
+                <span className='text-sm font-bold'>Transaction History</span>
+              </Button>
+            }
+          />
           <Button
             variant='ghost'
             className='justify-start gap-4 text-zinc-400 hover:text-zinc-50 hover:bg-zinc-900 h-14 rounded-2xl px-4'

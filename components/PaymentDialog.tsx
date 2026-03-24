@@ -9,13 +9,14 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Upload, CheckCircle2, QrCode } from "lucide-react";
-import Image from "next/image";
+import { Upload, CheckCircle2, QrCode, Loader2, AlertCircle } from "lucide-react";
+import { submitPaymentRequest } from "@/api/payments";
 
 interface PaymentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   packageData: {
+    id: string;
     coins: number;
     priceAmount: string;
     currency: string;
@@ -25,11 +26,27 @@ interface PaymentDialogProps {
 export function PaymentDialog({ open, onOpenChange, packageData }: PaymentDialogProps) {
   const [step, setStep] = useState<"instructions" | "upload" | "success">("instructions");
   const [file, setFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleNext = () => setStep("upload");
   
-  const handleSubmit = () => {
-    setStep("success");
+  const handleSubmit = async () => {
+    if (!packageData || !file) return;
+    
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await submitPaymentRequest({
+        packageId: packageData.id,
+        screenshot: file
+      });
+      setStep("success");
+    } catch (err) {
+      setError("Failed to submit request. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleClose = () => {
@@ -38,6 +55,7 @@ export function PaymentDialog({ open, onOpenChange, packageData }: PaymentDialog
     setTimeout(() => {
       setStep("instructions");
       setFile(null);
+      setError(null);
     }, 300);
   };
 
@@ -97,7 +115,7 @@ export function PaymentDialog({ open, onOpenChange, packageData }: PaymentDialog
                 onClick={handleNext}
                 className="w-full bg-violet-600 hover:bg-violet-700 h-12 text-sm font-black rounded-xl uppercase tracking-widest shadow-lg shadow-violet-900/20"
               >
-                I've Paid
+                I&apos;ve Paid
               </Button>
             </DialogFooter>
           </>
@@ -115,8 +133,18 @@ export function PaymentDialog({ open, onOpenChange, packageData }: PaymentDialog
             </DialogHeader>
 
             <div className="flex flex-col gap-4">
+              {error && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2 text-red-400 text-[10px] font-bold uppercase tracking-wider">
+                  <AlertCircle className="w-4 h-4" />
+                  {error}
+                </div>
+              )}
               <div 
-                className={`relative aspect-[3/4] rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors ${file ? 'border-violet-500 bg-violet-500/5' : 'border-zinc-800 bg-zinc-900/30 hover:bg-zinc-900/50'}`}
+                className={cn(
+                  "relative aspect-[3/4] rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors",
+                  file ? 'border-violet-500 bg-violet-500/5' : 'border-zinc-800 bg-zinc-900/30 hover:bg-zinc-900/50',
+                  isSubmitting && "opacity-50 pointer-events-none"
+                )}
                 onClick={() => document.getElementById('screenshot-upload')?.click()}
               >
                 {file ? (
@@ -137,7 +165,10 @@ export function PaymentDialog({ open, onOpenChange, packageData }: PaymentDialog
                 type="file" 
                 accept="image/*" 
                 className="hidden" 
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                onChange={(e) => {
+                  setFile(e.target.files?.[0] || null);
+                  setError(null);
+                }}
               />
             </div>
 
@@ -145,16 +176,17 @@ export function PaymentDialog({ open, onOpenChange, packageData }: PaymentDialog
               <Button 
                 variant="ghost" 
                 onClick={() => setStep("instructions")}
+                disabled={isSubmitting}
                 className="h-12 text-zinc-500 font-bold uppercase tracking-widest text-[11px]"
               >
                 Back
               </Button>
               <Button 
-                disabled={!file}
+                disabled={!file || isSubmitting}
                 onClick={handleSubmit}
                 className="flex-grow bg-violet-600 hover:bg-violet-700 h-12 text-sm font-black rounded-xl uppercase tracking-widest shadow-lg shadow-violet-900/20"
               >
-                Submit
+                {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Submit"}
               </Button>
             </DialogFooter>
           </>

@@ -207,6 +207,7 @@ export default function Shop() {
         packageData={
           selectedPackage
             ? {
+                id: selectedPackage.id,
                 coins: selectedPackage.coins,
                 priceAmount: formatCoinPackageAmount(selectedPackage),
                 currency: selectedPackage.currency,

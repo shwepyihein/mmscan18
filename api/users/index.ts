@@ -55,6 +55,31 @@ function applyAuthPayload(payload: unknown): UserProfile | null {
   return normalizeProfile(payload);
 }
 
+/** 
+ * Authenticate directly with the NestJS backend using Telegram initData or widget fields.
+ * Returns the backend JWT and sets it for future apiClient calls.
+ */
+export async function syncNestTelegramLogin(initDataOrFields: string | object): Promise<string | null> {
+  try {
+    const payload = typeof initDataOrFields === "string" 
+      ? { initData: initDataOrFields } 
+      : initDataOrFields;
+      
+    const { data } = await apiClient.post<unknown>('/auth/telegram-login', payload);
+    const inner = unwrapPayload(data);
+    const token = pickToken(data) ?? (inner ? pickToken(inner) : null);
+    
+    if (token) {
+      setStoredAuthToken(token);
+      return token;
+    }
+    return null;
+  } catch (error) {
+    console.error("NestJS Telegram login failed:", error);
+    return null;
+  }
+}
+
 /** Nest (or other backend) profile; sends Better Auth JWT from `apiClient`. */
 export async function fetchCurrentProfile(): Promise<UserProfile> {
   const { data } = await apiClient.get<unknown>(`/auth/me`);
@@ -63,6 +88,37 @@ export async function fetchCurrentProfile(): Promise<UserProfile> {
     throw new Error("Invalid profile");
   }
   return profile;
+}
+
+export interface UserTransaction {
+  id: string;
+  type: 'TOPUP' | 'UNLOCK';
+  amount: number;
+  status: 'PENDING' | 'COMPLETED' | 'FAILED';
+  createdAt: string;
+  description?: string;
+}
+
+/** 
+ * GET /users/transactions — Transaction history for current user.
+ * (Adjusted to match your NestJS controller structure).
+ */
+export async function getUserTransactions(): Promise<UserTransaction[]> {
+  try {
+    const { data } = await apiClient.get<unknown>('/users/transactions');
+    const inner = unwrapPayload(data);
+    const list = Array.isArray(inner) ? inner : Array.isArray(data) ? data : [];
+    return list.map((item: any) => ({
+      id: String(item.id ?? item._id),
+      type: item.type,
+      amount: Number(item.amount),
+      status: item.status,
+      createdAt: item.createdAt ?? item.created_at,
+      description: item.description,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export function clearClientAuthSession(): void {

@@ -1,4 +1,4 @@
-import { fetchCurrentProfile, clearClientAuthSession } from "@/api/users";
+import { fetchCurrentProfile, clearClientAuthSession, syncNestTelegramLogin } from "@/api/users";
 import {
   authClient,
   reloadOnceForTelegramInitData,
@@ -7,7 +7,7 @@ import {
   waitForTelegramInitData,
   waitForTelegramWebApp,
 } from "@/lib/auth-client";
-import { setStoredAuthToken } from "@/lib/api-client";
+import { setStoredAuthToken, getStoredAuthToken } from "@/lib/api-client";
 import { useUserStore } from "@/store/useUserStore";
 import {
   createContext,
@@ -37,6 +37,9 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 async function refreshJwtForNest(): Promise<void> {
+  // If we already have a token from NestJS, do not overwrite it with Better Auth's local JWT
+  if (getStoredAuthToken()) return;
+  
   try {
     const { data, error } = await authClient.token();
     if (error || !data?.token) {
@@ -124,9 +127,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       try {
+        await syncNestTelegramLogin(initData);
         await signInTelegramMiniApp();
         await refetch();
-        await refreshJwtForNest();
+        await refreshProfile();
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : "Telegram sync failed");
@@ -187,9 +191,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithTelegramBrowser = useCallback(
     async (fields: object) => {
       setError(null);
+      await syncNestTelegramLogin(fields);
       await exchangeTelegramWidgetForSession(fields);
       await refetch();
-      await refreshJwtForNest();
       await refreshProfile();
     },
     [refetch, refreshProfile],
