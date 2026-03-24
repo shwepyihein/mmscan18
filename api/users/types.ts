@@ -6,7 +6,7 @@ export interface UserProfile {
   coins: number;
 }
 
-/** `POST /auth/telegram-user-exists` response shape (Nest `UserExistsResponseDto`). */
+/** `POST /api/auth/telegram/user-exists` response (Better Auth). */
 export interface TelegramUserExistsResponse {
   exists: boolean;
   userId?: string;

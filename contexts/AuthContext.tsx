@@ -1,10 +1,10 @@
 import {
   fetchCurrentProfile,
-  loginWithTelegramWidget,
-  registerWithTelegramWidget,
   syncTelegramUser,
   clearClientAuthSession,
 } from "@/api/users";
+import { authClient } from "@/lib/auth-client";
+import { setStoredAuthToken } from "@/lib/api-client";
 import { useUserStore } from "@/store/useUserStore";
 import { isTMA, retrieveLaunchParams } from "@telegram-apps/sdk";
 import {
@@ -25,10 +25,10 @@ type AuthContextValue = {
   error: string | null;
   /** Browser: Telegram Login Widget payload or `/auth/telegram-callback` query. */
   loginWithTelegramBrowser: (fields: object) => Promise<void>;
-  /** Browser: same widget payload, upstream `/auth/telegram-register`. */
+  /** Browser: same widget payload; creates a new Better Auth user. */
   registerWithTelegramBrowser: (fields: object) => Promise<void>;
   refreshProfile: () => Promise<void>;
-  signOut: () => void;
+  signOut: () => Promise<void>;
   /** Convenience for UI */
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -36,106 +36,199 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+async function refreshJwtForNest(): Promise<void> {
+  const { data, error } = await authClient.token();
+  if (error || !data?.token) {
+    setStoredAuthToken(null);
+    return;
+  }
+  setStoredAuthToken(data.token);
+}
+
+function fallbackProfileFromSessionUser(user: {
+  id: string;
+  name?: string | null;
+  telegramId?: string | null;
+}) {
+  return {
+    id: user.id,
+    telegramId: String(user.telegramId ?? user.id),
+    username: user.name ?? undefined,
+    coins: 0,
+  };
+}
+
+function toStringFields(fields: object): Record<string, string> {
+  const stringFields: Record<string, string> = {};
+  for (const [k, v] of Object.entries(fields)) {
+    if (v === undefined || v === null) continue;
+    stringFields[k] = typeof v === "string" ? v : String(v);
+  }
+  return stringFields;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { data: session, isPending, error: sessionError, refetch } =
+    authClient.useSession();
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [isTelegramMiniApp, setIsTelegramMiniApp] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tmaBootstrapped, setTmaBootstrapped] = useState(false);
   const setProfile = useUserStore((s) => s.setProfile);
   const logoutStore = useUserStore((s) => s.logout);
 
+  const user = session?.user;
+
   const refreshProfile = useCallback(async () => {
-    const p = await fetchCurrentProfile();
-    setProfile(p);
+    await refreshJwtForNest();
+    try {
+      const p = await fetchCurrentProfile();
+      setProfile(p);
+    } catch {
+      const r = await fetch("/api/auth/get-session", { credentials: "include" });
+      const j = (await r.json()) as {
+        user?: { id: string; name?: string | null; telegramId?: string | null };
+      };
+      if (j?.user) setProfile(fallbackProfileFromSessionUser(j.user));
+    }
     setStatus("authenticated");
   }, [setProfile]);
 
-  const signOut = useCallback(() => {
+  const signOut = useCallback(async () => {
+    await authClient.signOut();
     clearClientAuthSession();
     logoutStore();
     setStatus("unauthenticated");
   }, [logoutStore]);
 
+  /** Mini App: verify initData with Better Auth, then refetch session. */
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setError(null);
+      const tma = await isTMA();
+      if (cancelled) return;
+      setIsTelegramMiniApp(tma);
+      if (!tma) {
+        setTmaBootstrapped(true);
+        return;
+      }
       try {
-        const tma = await isTMA();
-        if (cancelled) return;
-        setIsTelegramMiniApp(tma);
-
-        if (tma) {
-          try {
-            const lp = retrieveLaunchParams();
-            const raw = lp.initDataRaw;
-            if (!raw) {
-              setStatus("unauthenticated");
-              return;
-            }
-            const profile = await syncTelegramUser(raw);
-            if (!cancelled) {
-              setProfile(profile);
-              setStatus("authenticated");
-            }
-          } catch (e) {
-            if (!cancelled) {
-              setError(
-                e instanceof Error ? e.message : "Telegram sync failed",
-              );
-              setStatus("unauthenticated");
-            }
-          }
+        const lp = retrieveLaunchParams();
+        const raw = lp.initDataRaw;
+        if (!raw) {
+          setTmaBootstrapped(true);
           return;
         }
-
-        try {
-          const p = await fetchCurrentProfile();
-          if (!cancelled) {
-            setProfile(p);
-            setStatus("authenticated");
-          }
-        } catch {
-          if (!cancelled) setStatus("unauthenticated");
+        await syncTelegramUser(raw);
+        await refetch();
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Telegram sync failed");
         }
-      } catch {
-        if (!cancelled) setStatus("unauthenticated");
+      } finally {
+        if (!cancelled) setTmaBootstrapped(true);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [setProfile]);
+  }, [refetch]);
 
-  const toStringFields = (fields: object): Record<string, string> => {
-    const stringFields: Record<string, string> = {};
-    for (const [k, v] of Object.entries(fields)) {
-      if (v === undefined || v === null) continue;
-      stringFields[k] = typeof v === "string" ? v : String(v);
+  /** Derive status + profile from Better Auth session + Nest `/auth/me`. */
+  useEffect(() => {
+    if (!tmaBootstrapped || isPending) {
+      setStatus("loading");
+      return;
     }
-    return stringFields;
-  };
+
+    if (!user) {
+      setStatus("unauthenticated");
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      await refreshJwtForNest();
+      try {
+        const p = await fetchCurrentProfile();
+        if (!cancelled) {
+          setProfile(p);
+          setStatus("authenticated");
+        }
+      } catch {
+        if (!cancelled) {
+          const r = await fetch("/api/auth/get-session", { credentials: "include" });
+          const j = (await r.json()) as {
+            user?: { id: string; name?: string | null; telegramId?: string | null };
+          };
+          if (j?.user) setProfile(fallbackProfileFromSessionUser(j.user));
+          setStatus("authenticated");
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isPending, tmaBootstrapped, user, setProfile]);
+
+  useEffect(() => {
+    if (sessionError) {
+      setError(sessionError.message ?? "Session error");
+    }
+  }, [sessionError]);
 
   const loginWithTelegramBrowser = useCallback(
     async (fields: object) => {
       setError(null);
-      const profile = await loginWithTelegramWidget(toStringFields(fields));
-      setProfile(profile);
-      setStatus("authenticated");
+      const res = await fetch("/api/auth/telegram/sign-in-widget", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(toStringFields(fields)),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        message?: string;
+      };
+      if (!res.ok) {
+        throw new Error(
+          typeof body?.message === "string" ? body.message : "Telegram login failed",
+        );
+      }
+      await refetch();
+      await refreshJwtForNest();
+      await refreshProfile();
     },
-    [setProfile],
+    [refetch, refreshProfile],
   );
 
   const registerWithTelegramBrowser = useCallback(
     async (fields: object) => {
       setError(null);
-      const profile = await registerWithTelegramWidget(toStringFields(fields));
-      setProfile(profile);
-      setStatus("authenticated");
+      const res = await fetch("/api/auth/telegram/register-widget", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(toStringFields(fields)),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        message?: string;
+      };
+      if (!res.ok) {
+        throw new Error(
+          typeof body?.message === "string"
+            ? body.message
+            : "Telegram register failed",
+        );
+      }
+      await refetch();
+      await refreshJwtForNest();
+      await refreshProfile();
     },
-    [setProfile],
+    [refetch, refreshProfile],
   );
 
-  const isLoading = status === "loading";
+  const isLoading = status === "loading" || isPending || !tmaBootstrapped;
   const isAuthenticated = status === "authenticated";
 
   const value = useMemo(
