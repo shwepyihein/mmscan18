@@ -100,9 +100,12 @@ export default function Profile() {
               <ul className="list-inside list-disc space-y-1">
                 <li>
                   <code className="text-zinc-500">NEXT_PUBLIC_API_URL</code> must
-                  point at your Nest API (no trailing slash). The app calls{" "}
-                  <code className="text-zinc-500">POST /auth/telegram-login</code>{" "}
-                  with <code className="text-zinc-500">initData</code>.
+                  be your Railway host (no trailing slash). If Nest uses{" "}
+                  <code className="text-zinc-500">setGlobalPrefix(&apos;api&apos;)</code>, also set{" "}
+                  <code className="text-zinc-500">NEXT_PUBLIC_API_GLOBAL_PREFIX=api</code>{" "}
+                  or put <code className="text-zinc-500">/api</code> in the URL. Requests go to{" "}
+                  <code className="text-zinc-500">POST …/api/auth/telegram-login</code> with{" "}
+                  <code className="text-zinc-500">initData</code>.
                 </li>
                 <li>
                   This is <strong>not</strong> the Telegram Login Widget “domain”

@@ -1,4 +1,4 @@
-/** Backend routes (relative to `NEXT_PUBLIC_API_URL`). Override via env if needed. */
+/** Backend routes (relative to `getBackendBaseUrl()` — includes optional `/api` prefix). */
 
 export const DEFAULT_TELEGRAM_BROWSER_LOGIN_PATH = "/auth/telegram-login";
 

@@ -1,6 +1,8 @@
 import axios from "axios";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+import { getBackendBaseUrl } from "@/lib/backend-base-url";
+
+const API_URL = getBackendBaseUrl();
 
 /** GET /public/latest — latest published chapters */
 export const getPublicLatest = async (): Promise<unknown> => {

@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import axios from "axios";
+import { getBackendBaseUrl } from "@/lib/backend-base-url";
 import { getBetterAuthProxySecret } from "@/lib/auth-proxy-secret";
 import { DEFAULT_TELEGRAM_BROWSER_REGISTER_PATH } from "@/lib/telegram-auth-paths";
 
@@ -16,17 +17,15 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  const base = getBackendBaseUrl();
   const key = getBetterAuthProxySecret();
   const path =
     process.env.TELEGRAM_BROWSER_REGISTER_PATH ??
     DEFAULT_TELEGRAM_BROWSER_REGISTER_PATH;
 
-  if (!apiUrl) {
+  if (!base) {
     return res.status(500).json({ error: "NEXT_PUBLIC_API_URL is not set" });
   }
-
-  const base = apiUrl.replace(/\/$/, "");
   const pathNorm = path.startsWith("/") ? path : `/${path}`;
 
   try {

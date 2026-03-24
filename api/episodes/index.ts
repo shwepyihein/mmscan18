@@ -1,6 +1,7 @@
 import axios from "axios";
+import { getBackendBaseUrl } from "@/lib/backend-base-url";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const API_URL = getBackendBaseUrl();
 
 export interface Episode {
   id: string;

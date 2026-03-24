@@ -19,7 +19,8 @@ Open [http://localhost:3000](http://localhost:3000).
 
    | Variable | Notes |
    |----------|--------|
-   | `NEXT_PUBLIC_API_URL` | Your backend base URL (HTTPS). |
+   | `NEXT_PUBLIC_API_URL` | Your backend base URL (HTTPS, no trailing slash). |
+   | `NEXT_PUBLIC_API_GLOBAL_PREFIX` | Optional (e.g. `api`). Use when Nest uses `setGlobalPrefix('api')` so calls hit `/api/auth/...`, `/api/public/...`. Alternatively put `/api` at the end of `NEXT_PUBLIC_API_URL`. |
    | `NEXT_PUBLIC_SITE_URL` | **HTTPS** origin of this frontend, no trailing slash. Enables Telegram widget **redirect** login to `/auth/telegram-callback`. |
    | `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` | Bot username (no `@`). |
    | `BETTER_AUTH_API_KEY` | Bearer token for Next.js `/api/auth/*` → backend. **Prefer this** over any `NEXT_PUBLIC_*` secret. |
@@ -77,7 +78,7 @@ Telegram only allows the Login Widget on domains you register for the bot:
 
 ### Mini App “not found” / 404 (not the widget domain)
 
-The Mini App calls your API via `POST /api/auth/telegram-sync` → Nest `POST /auth/telegram-login` with `{ initData }`. A **404** means the URL or route is wrong: fix `NEXT_PUBLIC_API_URL`, confirm the Nest route exists, and CORS. This is separate from Telegram’s “Bot domain invalid” (browser Login Widget only).
+The Mini App calls your API via `POST /api/auth/telegram-sync` → Nest `POST …/auth/telegram-login` with `{ initData }`. If you see **`Cannot POST /auth/telegram-login`**, the request likely missed the global prefix: set `NEXT_PUBLIC_API_GLOBAL_PREFIX=api` (or use `NEXT_PUBLIC_API_URL=https://your-host.railway.app/api`) so the upstream URL is `https://host/api/auth/telegram-login`. Confirm with your deployed Nest routes and CORS. This is separate from Telegram’s “Bot domain invalid” (browser Login Widget only — fix in @BotFather using your **frontend** domain, not the Railway API URL).
 
 ## Scripts
 
