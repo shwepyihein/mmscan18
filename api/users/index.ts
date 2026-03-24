@@ -73,22 +73,105 @@ function errorMessageFromResponse(
   return fallback;
 }
 
-/** Telegram Mini App: verify `initData` with Better Auth (session cookie). */
+/** Unwrap Better Auth / better-call JSON (`{ data: T }` or `T`). */
+function unwrapAuthJson<T extends Record<string, unknown>>(body: unknown): T | null {
+  if (!body || typeof body !== "object") return null;
+  const o = body as Record<string, unknown>;
+  const inner = o.data;
+  if (inner && typeof inner === "object" && !Array.isArray(inner)) {
+    return inner as T;
+  }
+  return o as T;
+}
+
+type MiniAppValidateShape = {
+  valid?: boolean;
+  data?: { user?: { id?: number } } | null;
+};
+
+function parseMiniAppValidate(body: unknown): MiniAppValidateShape | null {
+  const a = unwrapAuthJson<Record<string, unknown>>(body);
+  if (!a) return null;
+  if (typeof a.valid === "boolean" && "data" in a) {
+    return a as MiniAppValidateShape;
+  }
+  const nested = unwrapAuthJson<Record<string, unknown>>(a);
+  if (nested && typeof nested.valid === "boolean") {
+    return nested as MiniAppValidateShape;
+  }
+  return null;
+}
+
+async function fetchBetterAuthSessionUser(): Promise<Record<string, unknown> | null> {
+  const res = await fetch("/api/auth/get-session", { credentials: "include" });
+  if (!res.ok) return null;
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  const root = unwrapAuthJson<Record<string, unknown>>(body) ?? body;
+  const user = root.user;
+  if (user && typeof user === "object" && !Array.isArray(user)) {
+    return user as Record<string, unknown>;
+  }
+  return null;
+}
+
+/**
+ * Telegram Mini App:
+ * 1. Validate `initData` (signature / freshness).
+ * 2. If a Better Auth session already matches this Telegram user, reuse it (login path).
+ * 3. Otherwise `POST /telegram/miniapp/signin` — creates the user on first visit or signs in (register vs login is server-side).
+ */
 export async function syncTelegramUser(initData: string): Promise<UserProfile> {
-  const res = await fetch("/api/auth/telegram/miniapp/signin", {
+  const validateRes = await fetch("/api/auth/telegram/miniapp/validate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
     body: JSON.stringify({ initData }),
   });
-  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!res.ok) {
+  const validateBody = (await validateRes.json().catch(() => ({}))) as Record<
+    string,
+    unknown
+  >;
+  if (!validateRes.ok) {
     throw new Error(
       errorMessageFromResponse(
-        data,
-        res.status,
-        "Telegram sync failed",
+        validateBody,
+        validateRes.status,
+        "Mini App initData validation failed",
       ),
+    );
+  }
+
+  const parsed = parseMiniAppValidate(validateBody);
+  const tgUserId = parsed?.data?.user?.id;
+  if (parsed?.valid !== true || tgUserId == null) {
+    throw new Error("Invalid or expired Telegram Mini App initData");
+  }
+  const telegramId = String(tgUserId);
+
+  const sessionUser = await fetchBetterAuthSessionUser();
+  const sessionTg =
+    sessionUser?.telegramId != null
+      ? String(sessionUser.telegramId)
+      : sessionUser?.telegram_id != null
+        ? String(sessionUser.telegram_id)
+        : null;
+  if (sessionTg === telegramId) {
+    const profile = normalizeProfile({ user: sessionUser });
+    if (profile) {
+      return profile;
+    }
+  }
+
+  const signinRes = await fetch("/api/auth/telegram/miniapp/signin", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ initData }),
+  });
+  const data = (await signinRes.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!signinRes.ok) {
+    throw new Error(
+      errorMessageFromResponse(data, signinRes.status, "Telegram Mini App sign-in failed"),
     );
   }
   const profile = normalizeProfile(data);

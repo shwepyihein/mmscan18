@@ -101,7 +101,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus("unauthenticated");
   }, [logoutStore]);
 
-  /** Mini App: verify initData with Better Auth, then refetch session. */
+  /**
+   * Mini App: validate `initData`, reuse session when it already matches this
+   * Telegram user, otherwise sign in (Better Auth creates the user on first open).
+   */
   useEffect(() => {
     let cancelled = false;
     (async () => {
