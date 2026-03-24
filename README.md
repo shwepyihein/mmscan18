@@ -55,8 +55,16 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Telegram login modes
 
-- **Redirect (production):** set `NEXT_PUBLIC_SITE_URL`. The widget uses `data-auth-url` → `/auth/telegram-callback`, then redirects to `/profile` (or `?next=/path` if you add that query on the widget URL later).
-- **Inline callback (local):** leave `NEXT_PUBLIC_SITE_URL` unset. The widget uses `onTelegramAuth` on the same page (e.g. Profile).
+- **Redirect (production):** set `NEXT_PUBLIC_SITE_URL` to the **exact** origin users use (HTTPS, no trailing slash). The widget uses `data-auth-url` → `/auth/telegram-callback?mode=…`. On **localhost**, redirect mode is disabled automatically so it does not clash with a production `NEXT_PUBLIC_SITE_URL`.
+- **Inline callback:** used on localhost or when `NEXT_PUBLIC_SITE_URL` is unset — same-page `onTelegramAuth` handlers.
+
+### “Bot domain invalid” (Telegram widget)
+
+Telegram only allows the Login Widget on domains you register for the bot:
+
+1. Open [@BotFather](https://t.me/BotFather) → your bot → **Bot Settings** → **Domain** (or `/setdomain`) and set the **exact** host users open (no `http://`, e.g. `app.example.com` or `www.example.com` — match `www` with how you deploy).
+2. **Localhost is not allowed.** Use a tunnel (e.g. ngrok) with HTTPS, add that hostname in BotFather, and open the app via that URL — not `http://localhost:3000`.
+3. Ensure `NEXT_PUBLIC_SITE_URL` matches the browser’s origin when redirect mode is on (the app shows a warning if they differ).
 
 ## Scripts
 

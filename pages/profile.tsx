@@ -1,12 +1,16 @@
 import Head from "next/head";
-import { User, Wallet, History, LogOut, Star, Settings, ChevronLeft, LogIn, UserPlus } from "lucide-react";
+import { User, Wallet, History, LogOut, Star, Settings, ChevronLeft, LogIn, UserPlus, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/components/AuthProvider";
 import { TelegramLoginWidget } from "@/components/TelegramLoginWidget";
 import { useUserStore } from "@/store/useUserStore";
+import {
+  isLocalhostHostname,
+  isPublicSiteUrlHostMismatch,
+} from "@/lib/telegram-domain";
 import { useRouter } from "next/router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function Profile() {
   const router = useRouter();
@@ -22,8 +26,27 @@ export default function Profile() {
   } = useAuth();
   const [loginError, setLoginError] = useState<string | null>(null);
   const [registerError, setRegisterError] = useState<string | null>(null);
+  const [telegramDomainHint, setTelegramDomainHint] = useState<
+    "localhost" | "host_mismatch" | null
+  >(null);
+  const [browserHost, setBrowserHost] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setBrowserHost(window.location.host);
+    if (isLocalhostHostname(window.location.hostname)) {
+      setTelegramDomainHint("localhost");
+      return;
+    }
+    if (isPublicSiteUrlHostMismatch()) {
+      setTelegramDomainHint("host_mismatch");
+      return;
+    }
+    setTelegramDomainHint(null);
+  }, []);
 
   const botName = (process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "").trim();
+  const siteUrlEnv = (process.env.NEXT_PUBLIC_SITE_URL ?? "").trim();
 
   return (
     <>
@@ -72,6 +95,57 @@ export default function Profile() {
               <p className="text-center text-sm font-medium text-zinc-400">
                 Use Telegram in the browser to sync your wallet and unlocks.
               </p>
+              {telegramDomainHint === "localhost" ? (
+                <div
+                  role="status"
+                  className="flex gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 p-4 text-left text-xs text-amber-100/90"
+                >
+                  <AlertTriangle className="h-5 w-5 shrink-0 text-amber-400" />
+                  <div className="space-y-2 leading-relaxed">
+                    <p className="font-bold text-amber-200">
+                      “Bot domain invalid” on localhost
+                    </p>
+                    <p>
+                      Telegram does not allow{" "}
+                      <code className="rounded bg-zinc-950/50 px-1 py-0.5 text-[11px]">
+                        localhost
+                      </code>{" "}
+                      as the widget domain. Use a public HTTPS URL (for example{" "}
+                      <span className="whitespace-nowrap">ngrok</span>) and add{" "}
+                      <strong>that exact host</strong> in @BotFather → your bot →
+                      Bot Settings → Domain.
+                    </p>
+                    <p className="text-amber-200/80">
+                      Or test the widget on your production domain after setting{" "}
+                      <code className="rounded bg-zinc-950/50 px-1 text-[11px]">
+                        NEXT_PUBLIC_SITE_URL
+                      </code>{" "}
+                      to match it.
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+              {telegramDomainHint === "host_mismatch" && siteUrlEnv ? (
+                <div
+                  role="status"
+                  className="flex gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 p-4 text-left text-xs text-amber-100/90"
+                >
+                  <AlertTriangle className="h-5 w-5 shrink-0 text-amber-400" />
+                  <div className="space-y-2 leading-relaxed">
+                    <p className="font-bold text-amber-200">Domain mismatch</p>
+                    <p>
+                      You opened this app on{" "}
+                      <code className="rounded bg-zinc-950/50 px-1 py-0.5 text-[11px]">
+                        {browserHost || "…"}
+                      </code>{" "}
+                      but <code className="rounded bg-zinc-950/50 px-1 text-[11px]">NEXT_PUBLIC_SITE_URL</code>{" "}
+                      is <code className="break-all rounded bg-zinc-950/50 px-1 text-[11px]">{siteUrlEnv}</code>.
+                      Telegram requires the site origin to match the bot domain in BotFather (including{" "}
+                      <code className="text-[11px]">www</code> vs non-www).
+                    </p>
+                  </div>
+                </div>
+              ) : null}
               {botName ? (
                 <div className="grid gap-6 sm:grid-cols-2">
                   <div className="flex flex-col gap-3 rounded-2xl border border-zinc-800/80 bg-zinc-950/40 p-4">
