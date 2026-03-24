@@ -37,12 +37,16 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 async function refreshJwtForNest(): Promise<void> {
-  const { data, error } = await authClient.token();
-  if (error || !data?.token) {
+  try {
+    const { data, error } = await authClient.token();
+    if (error || !data?.token) {
+      setStoredAuthToken(null);
+      return;
+    }
+    setStoredAuthToken(data.token);
+  } catch {
     setStoredAuthToken(null);
-    return;
   }
-  setStoredAuthToken(data.token);
 }
 
 function fallbackProfileFromSessionUser(user: {

@@ -13,10 +13,31 @@ function resolveBaseURL(): string {
   );
 }
 
+/**
+ * Better Auth's default JSON parser returns `null` for empty bodies; the client
+ * then does `(unwrap(res)).user` and throws "null is not an object" in Mini
+ * App / Telegram WebView when `/get-session` or `/token` returns empty or `null`.
+ */
+function safeAuthJsonParser(text: string): Record<string, unknown> {
+  if (text == null || !String(text).trim()) {
+    return {};
+  }
+  try {
+    const v = JSON.parse(String(text)) as unknown;
+    if (v === null || typeof v !== "object" || Array.isArray(v)) {
+      return {};
+    }
+    return v as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
 export const authClient = createAuthClient({
   baseURL: resolveBaseURL(),
   fetchOptions: {
     credentials: "include",
+    jsonParser: safeAuthJsonParser,
   },
   plugins: [jwtClient(), telegramClient()],
 });
