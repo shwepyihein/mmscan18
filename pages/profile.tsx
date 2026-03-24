@@ -1,5 +1,5 @@
 import Head from "next/head";
-import { User, Wallet, History, LogOut, Star, Settings, ChevronLeft, LogIn, UserPlus, AlertTriangle } from "lucide-react";
+import { User, Wallet, History, LogOut, Star, Settings, ChevronLeft, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/components/AuthProvider";
@@ -122,6 +122,10 @@ export default function Profile() {
               <p className="text-center text-sm font-medium text-zinc-400">
                 Use Telegram in the browser to sync your wallet and unlocks.
               </p>
+              <p className="text-center text-[11px] leading-relaxed text-zinc-500">
+                Tap the <strong className="text-zinc-300">blue “Log in with Telegram”</strong> button{" "}
+                inside each box — the “Login” / “Register” titles are labels, not buttons.
+              </p>
               {telegramDomainHint === "localhost" ? (
                 <div
                   role="status"
@@ -186,12 +190,9 @@ export default function Profile() {
               {botName ? (
                 <div className="grid gap-6 sm:grid-cols-2">
                   <div className="flex flex-col gap-3 rounded-2xl border border-zinc-800/80 bg-zinc-950/40 p-4">
-                    <div className="flex items-center justify-center gap-2 text-zinc-200">
-                      <LogIn className="h-4 w-4 text-violet-400" />
-                      <span className="text-xs font-black uppercase tracking-widest">
-                        Login
-                      </span>
-                    </div>
+                    <h2 className="text-center text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">
+                      Login
+                    </h2>
                     <TelegramLoginWidget
                       botName={botName}
                       authMode="login"
@@ -213,12 +214,9 @@ export default function Profile() {
                     ) : null}
                   </div>
                   <div className="flex flex-col gap-3 rounded-2xl border border-zinc-800/80 bg-zinc-950/40 p-4">
-                    <div className="flex items-center justify-center gap-2 text-zinc-200">
-                      <UserPlus className="h-4 w-4 text-emerald-400" />
-                      <span className="text-xs font-black uppercase tracking-widest">
-                        Register
-                      </span>
-                    </div>
+                    <h2 className="text-center text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">
+                      Register
+                    </h2>
                     <TelegramLoginWidget
                       botName={botName}
                       authMode="register"

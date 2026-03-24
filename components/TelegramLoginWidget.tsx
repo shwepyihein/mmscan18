@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { normalizeTelegramBotUsername } from "@/lib/telegram-bot-username";
 import { getPublicSiteUrl } from "@/lib/site-url";
+import { cn } from "@/lib/utils";
 
 export interface TelegramUser {
   id: number;
@@ -16,6 +17,8 @@ export type TelegramAuthMode = "login" | "register";
 
 interface TelegramLoginWidgetProps {
   botName: string;
+  /** Extra classes on the widget wrapper (min-height helps while the iframe loads). */
+  className?: string;
   /**
    * Same-page login (localhost / when `NEXT_PUBLIC_SITE_URL` is unset).
    * Not used when redirect mode is active (production with `NEXT_PUBLIC_SITE_URL`).
@@ -32,6 +35,7 @@ interface TelegramLoginWidgetProps {
 
 export function TelegramLoginWidget({
   botName,
+  className = "",
   onAuth,
   globalCallbackName = "onTelegramAuth",
   authMode = "login",
@@ -103,5 +107,13 @@ export function TelegramLoginWidget({
     authMode,
   ]);
 
-  return <div ref={containerRef} className="flex justify-center" />;
+  return (
+    <div
+      ref={containerRef}
+      className={cn(
+        "flex min-h-[52px] w-full flex-col items-center justify-center rounded-xl border border-zinc-700/40 bg-zinc-950/50 px-2 py-3",
+        className,
+      )}
+    />
+  );
 }
