@@ -7,7 +7,11 @@ declare global {
     Telegram?: {
       WebApp?: {
         initData?: string;
+        initDataUnsafe?: Record<string, unknown>;
         ready?: (callback?: () => void) => void;
+        expand?: () => void;
+        version?: string;
+        platform?: string;
       };
     };
   }
@@ -89,18 +93,83 @@ export function waitForTelegramWebApp(options?: {
 }
 
 /**
- * Wait for non-empty `initData` (Telegram can fill it shortly after WebApp is ready).
+ * Notify Telegram that the Mini App UI is ready — some clients only fill `initData` after this.
  */
-export function waitForTelegramInitData(options?: {
+export function notifyTelegramWebAppReady(): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+  const w = window.Telegram?.WebApp;
+  if (!w) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const once = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    try {
+      if (typeof w.ready === "function") {
+        w.ready(once);
+        window.setTimeout(once, 4000);
+      } else {
+        once();
+      }
+    } catch {
+      once();
+    }
+  });
+}
+
+/** Debug snapshot for Profile / support (why `initData` can be empty). */
+export function getTelegramWebAppDebugSnapshot(): Record<string, unknown> {
+  if (typeof window === "undefined") {
+    return { error: "SSR — no window" };
+  }
+  const w = window.Telegram?.WebApp;
+  if (!w) {
+    return {
+      hasWebApp: false,
+      hint: "No window.Telegram.WebApp. Load telegram-web-app.js and open inside the Telegram app (not Safari/Chrome alone).",
+    };
+  }
+  const init = w.initData?.trim() ?? "";
+  return {
+    hasWebApp: true,
+    initDataLength: init.length,
+    initDataEmpty: init.length === 0,
+    initDataUnsafe: w.initDataUnsafe ?? null,
+    version: w.version ?? null,
+    platform: w.platform ?? null,
+    hint:
+      init.length === 0
+        ? "Signed initData is empty. Open the bot → Menu button / keyboard button that launches the Mini App. Opening the site URL in an external browser or a plain t.me link often leaves initData empty — Better Auth needs the signed string to verify."
+        : null,
+  };
+}
+
+/**
+ * Wait for non-empty `initData` (after `ready()`, Telegram may fill it shortly).
+ */
+export async function waitForTelegramInitData(options?: {
   timeoutMs?: number;
   intervalMs?: number;
 }): Promise<string | null> {
-  const timeoutMs = options?.timeoutMs ?? 10000;
+  const timeoutMs = options?.timeoutMs ?? 15000;
   const intervalMs = options?.intervalMs ?? 40;
   if (typeof window === "undefined") return Promise.resolve(null);
 
+  await notifyTelegramWebAppReady();
+  try {
+    window.Telegram?.WebApp?.expand?.();
+  } catch {
+    /* ignore */
+  }
+  await new Promise<void>((r) => {
+    window.setTimeout(r, 200);
+  });
+
   const rawNow = window.Telegram?.WebApp?.initData?.trim() ?? "";
-  if (rawNow) return Promise.resolve(rawNow);
+  if (rawNow) return rawNow;
 
   return new Promise((resolve) => {
     const start = Date.now();

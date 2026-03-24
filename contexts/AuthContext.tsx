@@ -123,11 +123,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTmaBootstrapped(true);
         return;
       }
-      try {
-        window.Telegram?.WebApp?.ready?.(() => {});
-      } catch {
-        /* ignore */
-      }
       const initData = await waitForTelegramInitData();
       if (cancelled) return;
       if (!initData?.trim()) {

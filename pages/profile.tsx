@@ -2,7 +2,10 @@ import { useAuth } from '@/components/AuthProvider';
 import { TelegramLoginWidget } from '@/components/TelegramLoginWidget';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { waitForTelegramInitData } from '@/lib/auth-client';
+import {
+  getTelegramWebAppDebugSnapshot,
+  waitForTelegramInitData,
+} from '@/lib/auth-client';
 import { normalizeTelegramBotUsername } from '@/lib/telegram-bot-username';
 import {
   isLocalhostHostname,
@@ -66,15 +69,14 @@ export default function Profile() {
     }
     let cancelled = false;
     (async () => {
-      const raw = await waitForTelegramInitData({ timeoutMs: 12000 });
+      const raw = await waitForTelegramInitData({ timeoutMs: 15000 });
       if (cancelled) return;
       if (!raw?.trim()) {
         setMiniAppInitDataJson(
           JSON.stringify(
             {
-              initData: null,
-              note:
-                'still empty after wait — check telegram-web-app.js / open from Telegram',
+              ...getTelegramWebAppDebugSnapshot(),
+              note: 'Signed initData still empty after ready()+wait. If initDataUnsafe has user but initData is empty, you did not open as a Mini App from Telegram (use the bot Menu / button). Plain browser or some in-app browsers never get a signed string.',
             },
             null,
             2,
