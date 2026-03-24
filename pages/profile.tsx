@@ -2,6 +2,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { TelegramLoginWidget } from '@/components/TelegramLoginWidget';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { waitForTelegramInitData } from '@/lib/auth-client';
 import { normalizeTelegramBotUsername } from '@/lib/telegram-bot-username';
 import {
   isLocalhostHostname,
@@ -59,47 +60,58 @@ export default function Profile() {
   }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !isTelegramMiniApp) {
+    if (!isTelegramMiniApp) {
       setMiniAppInitDataJson(null);
       return;
     }
-    const raw = window.Telegram?.WebApp?.initData?.trim() ?? '';
-    if (!raw) {
-      setMiniAppInitDataJson(
-        JSON.stringify(
-          { initData: null, note: 'empty — open from Telegram Mini App' },
-          null,
-          2,
-        ),
-      );
-      return;
-    }
-    try {
-      const params = new URLSearchParams(raw);
-      const parsed: Record<string, unknown> = {};
-      for (const [key, value] of Array.from(params.entries())) {
-        if (key === 'user' || key === 'receiver' || key === 'chat') {
-          try {
-            parsed[key] = JSON.parse(value) as unknown;
-          } catch {
+    let cancelled = false;
+    (async () => {
+      const raw = await waitForTelegramInitData({ timeoutMs: 12000 });
+      if (cancelled) return;
+      if (!raw?.trim()) {
+        setMiniAppInitDataJson(
+          JSON.stringify(
+            {
+              initData: null,
+              note:
+                'still empty after wait — check telegram-web-app.js / open from Telegram',
+            },
+            null,
+            2,
+          ),
+        );
+        return;
+      }
+      try {
+        const params = new URLSearchParams(raw);
+        const parsed: Record<string, unknown> = {};
+        for (const [key, value] of Array.from(params.entries())) {
+          if (key === 'user' || key === 'receiver' || key === 'chat') {
+            try {
+              parsed[key] = JSON.parse(value) as unknown;
+            } catch {
+              parsed[key] = value;
+            }
+          } else if (key === 'auth_date' || key === 'can_send_after') {
+            parsed[key] = Number(value);
+          } else {
             parsed[key] = value;
           }
-        } else if (key === 'auth_date' || key === 'can_send_after') {
-          parsed[key] = Number(value);
-        } else {
-          parsed[key] = value;
         }
+        setMiniAppInitDataJson(
+          JSON.stringify(
+            { initDataRaw: raw, parsed, initDataLength: raw.length },
+            null,
+            2,
+          ),
+        );
+      } catch {
+        setMiniAppInitDataJson(JSON.stringify({ initDataRaw: raw }, null, 2));
       }
-      setMiniAppInitDataJson(
-        JSON.stringify(
-          { initDataRaw: raw, parsed, initDataLength: raw.length },
-          null,
-          2,
-        ),
-      );
-    } catch {
-      setMiniAppInitDataJson(JSON.stringify({ initDataRaw: raw }, null, 2));
-    }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [isTelegramMiniApp]);
 
   const botName = normalizeTelegramBotUsername(

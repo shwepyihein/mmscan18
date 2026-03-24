@@ -1,8 +1,9 @@
 import { fetchCurrentProfile, clearClientAuthSession } from "@/api/users";
 import {
   authClient,
-  isTelegramMiniAppEnvironment,
   signInTelegramMiniApp,
+  waitForTelegramInitData,
+  waitForTelegramWebApp,
 } from "@/lib/auth-client";
 import { setStoredAuthToken } from "@/lib/api-client";
 import { useUserStore } from "@/store/useUserStore";
@@ -115,14 +116,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTmaBootstrapped(true);
         return;
       }
-      const inMiniApp = isTelegramMiniAppEnvironment();
+      const inMiniApp = await waitForTelegramWebApp();
       if (cancelled) return;
       setIsTelegramMiniApp(inMiniApp);
       if (!inMiniApp) {
         setTmaBootstrapped(true);
         return;
       }
-      if (!window.Telegram?.WebApp?.initData?.trim()) {
+      try {
+        window.Telegram?.WebApp?.ready?.(() => {});
+      } catch {
+        /* ignore */
+      }
+      const initData = await waitForTelegramInitData();
+      if (cancelled) return;
+      if (!initData?.trim()) {
         setTmaBootstrapped(true);
         return;
       }

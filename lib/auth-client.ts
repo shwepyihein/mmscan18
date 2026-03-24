@@ -7,6 +7,7 @@ declare global {
     Telegram?: {
       WebApp?: {
         initData?: string;
+        ready?: (callback?: () => void) => void;
       };
     };
   }
@@ -56,6 +57,67 @@ export const authClient = createAuthClient({
 export function isTelegramMiniAppEnvironment(): boolean {
   if (typeof window === "undefined") return false;
   return Boolean(window.Telegram?.WebApp);
+}
+
+/**
+ * Wait for `window.Telegram.WebApp` — it often appears after first paint in a Mini App.
+ */
+export function waitForTelegramWebApp(options?: {
+  timeoutMs?: number;
+  intervalMs?: number;
+}): Promise<boolean> {
+  const timeoutMs = options?.timeoutMs ?? 8000;
+  const intervalMs = options?.intervalMs ?? 40;
+  if (typeof window === "undefined") return Promise.resolve(false);
+  if (window.Telegram?.WebApp) return Promise.resolve(true);
+
+  return new Promise((resolve) => {
+    const start = Date.now();
+    const tick = () => {
+      if (window.Telegram?.WebApp) {
+        resolve(true);
+        return;
+      }
+      if (Date.now() - start >= timeoutMs) {
+        resolve(false);
+        return;
+      }
+      window.setTimeout(tick, intervalMs);
+    };
+    tick();
+  });
+}
+
+/**
+ * Wait for non-empty `initData` (Telegram can fill it shortly after WebApp is ready).
+ */
+export function waitForTelegramInitData(options?: {
+  timeoutMs?: number;
+  intervalMs?: number;
+}): Promise<string | null> {
+  const timeoutMs = options?.timeoutMs ?? 10000;
+  const intervalMs = options?.intervalMs ?? 40;
+  if (typeof window === "undefined") return Promise.resolve(null);
+
+  const rawNow = window.Telegram?.WebApp?.initData?.trim() ?? "";
+  if (rawNow) return Promise.resolve(rawNow);
+
+  return new Promise((resolve) => {
+    const start = Date.now();
+    const tick = () => {
+      const raw = window.Telegram?.WebApp?.initData?.trim() ?? "";
+      if (raw) {
+        resolve(raw);
+        return;
+      }
+      if (Date.now() - start >= timeoutMs) {
+        resolve(null);
+        return;
+      }
+      window.setTimeout(tick, intervalMs);
+    };
+    tick();
+  });
 }
 
 type MiniAppSignInResult = {
