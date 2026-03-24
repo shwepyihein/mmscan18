@@ -84,22 +84,23 @@ function unwrapAuthJson<T extends Record<string, unknown>>(body: unknown): T | n
   return o as T;
 }
 
-type MiniAppValidateShape = {
-  valid?: boolean;
-  data?: { user?: { id?: number } } | null;
-};
-
-function parseMiniAppValidate(body: unknown): MiniAppValidateShape | null {
-  const a = unwrapAuthJson<Record<string, unknown>>(body);
-  if (!a) return null;
-  if (typeof a.valid === "boolean" && "data" in a) {
-    return a as MiniAppValidateShape;
+/**
+ * Read Telegram user id from raw `initData` (same shape Telegram sends in Mini Apps).
+ * Used only to compare with the current Better Auth session before calling sign-in.
+ * Cryptographic verification still happens on `POST .../miniapp/signin`.
+ */
+export function parseTelegramUserIdFromInitData(initData: string): string | null {
+  const raw = initData.trim();
+  if (!raw) return null;
+  try {
+    const params = new URLSearchParams(raw);
+    const userJson = params.get("user");
+    if (!userJson) return null;
+    const u = JSON.parse(userJson) as { id?: number };
+    return u.id != null ? String(u.id) : null;
+  } catch {
+    return null;
   }
-  const nested = unwrapAuthJson<Record<string, unknown>>(a);
-  if (nested && typeof nested.valid === "boolean") {
-    return nested as MiniAppValidateShape;
-  }
-  return null;
 }
 
 async function fetchBetterAuthSessionUser(): Promise<Record<string, unknown> | null> {
@@ -116,37 +117,27 @@ async function fetchBetterAuthSessionUser(): Promise<Record<string, unknown> | n
 
 /**
  * Telegram Mini App:
- * 1. Validate `initData` (signature / freshness).
- * 2. If a Better Auth session already matches this Telegram user, reuse it (login path).
- * 3. Otherwise `POST /telegram/miniapp/signin` — creates the user on first visit or signs in (register vs login is server-side).
+ * 1. Parse `user.id` from `initData` (for session short-circuit only).
+ * 2. If a Better Auth session already matches this Telegram user, reuse it.
+ * 3. Otherwise `POST /telegram/miniapp/signin` — server verifies HMAC + freshness; creates user or signs in.
+ *
+ * We do not rely on `POST .../validate` here: Better Auth may wrap that JSON, which broke parsing and
+ * produced false "Invalid or expired initData" errors even when sign-in would succeed.
  */
 export async function syncTelegramUser(initData: string): Promise<UserProfile> {
-  const validateRes = await fetch("/api/auth/telegram/miniapp/validate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ initData }),
-  });
-  const validateBody = (await validateRes.json().catch(() => ({}))) as Record<
-    string,
-    unknown
-  >;
-  if (!validateRes.ok) {
+  const trimmed = initData.trim();
+  if (!trimmed) {
     throw new Error(
-      errorMessageFromResponse(
-        validateBody,
-        validateRes.status,
-        "Mini App initData validation failed",
-      ),
+      "Missing Telegram Mini App initData. Open this app from Telegram (not a normal browser tab).",
     );
   }
 
-  const parsed = parseMiniAppValidate(validateBody);
-  const tgUserId = parsed?.data?.user?.id;
-  if (parsed?.valid !== true || tgUserId == null) {
-    throw new Error("Invalid or expired Telegram Mini App initData");
+  const telegramId = parseTelegramUserIdFromInitData(trimmed);
+  if (!telegramId) {
+    throw new Error(
+      "Could not read Telegram user from initData. Open the Mini App inside Telegram.",
+    );
   }
-  const telegramId = String(tgUserId);
 
   const sessionUser = await fetchBetterAuthSessionUser();
   const sessionTg =

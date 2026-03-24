@@ -26,7 +26,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 | Flow | Route |
 |------|--------|
-| Mini App `initData` | `POST /api/auth/telegram/miniapp/validate` then `POST /api/auth/telegram/miniapp/signin` |
+| Mini App `initData` | Session reuse when possible, else `POST /api/auth/telegram/miniapp/signin` |
 | Browser Login Widget | `POST /api/auth/telegram/signin` (creates user if missing when `autoCreateUser` is enabled) |
 
 ## Production checklist

@@ -132,17 +132,14 @@ export default function Profile() {
                   <code className='text-zinc-500'>npm run migrate:auth</code>).
                 </li>
                 <li>
-                  Mini App flow:{' '}
-                  <code className='text-zinc-500'>
-                    POST /api/auth/telegram/miniapp/validate
-                  </code>{' '}
-                  then reuse session or{' '}
+                  Mini App flow: reuse session when it matches the Telegram user
+                  in <code className='text-zinc-500'>initData</code>, else{' '}
                   <code className='text-zinc-500'>
                     POST /api/auth/telegram/miniapp/signin
                   </code>{' '}
-                  with <code className='text-zinc-500'>initData</code> (first
-                  open creates the user; later opens sign in). If you still see
-                  old Nest errors, redeploy the frontend.
+                  (server verifies hash; first open creates the user). If sign-in
+                  fails, check <code className='text-zinc-500'>TELEGRAM_BOT_TOKEN</code>{' '}
+                  matches the bot and reopen the Mini App (initData expires).
                 </li>
                 <li>
                   Wallet data may call Nest (

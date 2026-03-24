@@ -70,9 +70,9 @@ npm run migrate:auth
 
 ## 7. What happens in the browser (Mini App)
 
-1. `POST /api/auth/telegram/miniapp/validate` — verifies `initData`.
+1. The client reads the Telegram user id from `initData` (to see if the current cookie session already matches).
 2. If a session cookie already matches the same Telegram user, that session is reused.
-3. Otherwise `POST /api/auth/telegram/miniapp/signin` — **first visit creates** the user; **later visits sign in**.
+3. Otherwise `POST /api/auth/telegram/miniapp/signin` — the server verifies the `initData` hash and freshness; **first visit creates** the user; **later visits sign in**.
 
 ---
 
