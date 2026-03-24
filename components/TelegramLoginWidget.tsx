@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { normalizeTelegramBotUsername } from "@/lib/telegram-bot-username";
 import { getPublicSiteUrl } from "@/lib/site-url";
 
 export interface TelegramUser {
@@ -47,6 +48,9 @@ export function TelegramLoginWidget({
   useEffect(() => {
     if (!containerRef.current) return;
 
+    const bot = normalizeTelegramBotUsername(botName);
+    if (!bot) return;
+
     const siteUrl = getPublicSiteUrl();
     const useRedirect = Boolean(siteUrl);
 
@@ -67,7 +71,7 @@ export function TelegramLoginWidget({
     const script = document.createElement("script");
     script.src = "https://telegram.org/js/telegram-widget.js?22";
     script.async = true;
-    script.setAttribute("data-telegram-login", botName);
+    script.setAttribute("data-telegram-login", bot);
     script.setAttribute("data-size", buttonSize);
     script.setAttribute("data-radius", cornerRadius.toString());
     script.setAttribute("data-request-access", requestAccess);

@@ -73,6 +73,11 @@ Telegram only allows the Login Widget on domains you register for the bot:
 1. Open [@BotFather](https://t.me/BotFather) → your bot → **Bot Settings** → **Domain** (or `/setdomain`) and set the **exact** host users open (no `http://`, e.g. `app.example.com` or `www.example.com` — match `www` with how you deploy).
 2. **Localhost is not allowed.** Use a tunnel (e.g. ngrok) with HTTPS, add that hostname in BotFather, and open the app via that URL — not `http://localhost:3000`.
 3. Ensure `NEXT_PUBLIC_SITE_URL` matches the browser’s origin when redirect mode is on (the app shows a warning if they differ).
+4. **Bot username:** use the bot’s `@username` without `@` (e.g. `hotmmmanhwapremium_bot`). Display titles like “Hot MM Manhwa Premium Bot” are not valid for the widget.
+
+### Mini App “not found” / 404 (not the widget domain)
+
+The Mini App calls your API via `POST /api/auth/telegram-sync` → Nest `POST /auth/telegram-login` with `{ initData }`. A **404** means the URL or route is wrong: fix `NEXT_PUBLIC_API_URL`, confirm the Nest route exists, and CORS. This is separate from Telegram’s “Bot domain invalid” (browser Login Widget only).
 
 ## Scripts
 

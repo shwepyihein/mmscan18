@@ -55,6 +55,24 @@ function applyAuthPayload(payload: unknown): UserProfile | null {
   return normalizeProfile(payload);
 }
 
+function errorMessageFromResponse(
+  data: Record<string, unknown>,
+  status: number,
+  fallback: string,
+): string {
+  const nestMsg = data.message;
+  if (typeof nestMsg === 'string' && nestMsg.length > 0) return nestMsg;
+  const err = data.error;
+  if (typeof err === 'string' && err.length > 0) return err;
+  if (status === 404) {
+    return `${fallback}: backend returned 404. Confirm NEXT_PUBLIC_API_URL and that POST /auth/telegram-login exists.`;
+  }
+  if (status === 502) {
+    return `${fallback}: could not reach the API (502). Check NEXT_PUBLIC_API_URL and that the server is running.`;
+  }
+  return fallback;
+}
+
 /** Telegram Mini App: sync `initData` (proxied — API key stays server-side). */
 export async function syncTelegramUser(initData: string): Promise<UserProfile> {
   const res = await fetch('/api/auth/telegram-sync', {
@@ -63,10 +81,14 @@ export async function syncTelegramUser(initData: string): Promise<UserProfile> {
     credentials: 'include',
     body: JSON.stringify({ initData }),
   });
-  const data = await res.json().catch(() => ({}));
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
     throw new Error(
-      typeof data?.error === 'string' ? data.error : 'Telegram sync failed',
+      errorMessageFromResponse(
+        data,
+        res.status,
+        'Telegram sync failed',
+      ),
     );
   }
   const profile = applyAuthPayload(data);

@@ -9,6 +9,7 @@ import {
   isLocalhostHostname,
   isPublicSiteUrlHostMismatch,
 } from "@/lib/telegram-domain";
+import { normalizeTelegramBotUsername } from "@/lib/telegram-bot-username";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 
@@ -45,7 +46,9 @@ export default function Profile() {
     setTelegramDomainHint(null);
   }, []);
 
-  const botName = (process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "").trim();
+  const botName = normalizeTelegramBotUsername(
+    process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "",
+  );
   const siteUrlEnv = (process.env.NEXT_PUBLIC_SITE_URL ?? "").trim();
 
   return (
@@ -84,9 +87,30 @@ export default function Profile() {
         </header>
 
         {authError && isTelegramMiniApp ? (
-          <p className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-center text-sm text-red-400">
-            {authError}
-          </p>
+          <div
+            role="alert"
+            className="flex flex-col gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-4 text-left text-sm text-red-300"
+          >
+            <p className="font-bold text-red-200">Mini App sign-in failed</p>
+            <p className="text-xs leading-relaxed">{authError}</p>
+            <div className="border-t border-red-500/20 pt-3 text-[11px] leading-relaxed text-zinc-400">
+              <p className="mb-2 font-semibold text-zinc-300">
+                If you see “not found” or 404:
+              </p>
+              <ul className="list-inside list-disc space-y-1">
+                <li>
+                  <code className="text-zinc-500">NEXT_PUBLIC_API_URL</code> must
+                  point at your Nest API (no trailing slash). The app calls{" "}
+                  <code className="text-zinc-500">POST /auth/telegram-login</code>{" "}
+                  with <code className="text-zinc-500">initData</code>.
+                </li>
+                <li>
+                  This is <strong>not</strong> the Telegram Login Widget “domain”
+                  issue — that only affects the browser buttons on Profile.
+                </li>
+              </ul>
+            </div>
+          </div>
         ) : null}
 
         {!isLoading && status === "unauthenticated" && !isTelegramMiniApp && (
@@ -103,7 +127,7 @@ export default function Profile() {
                   <AlertTriangle className="h-5 w-5 shrink-0 text-amber-400" />
                   <div className="space-y-2 leading-relaxed">
                     <p className="font-bold text-amber-200">
-                      “Bot domain invalid” on localhost
+                      “Bot domain invalid” or bot not found (browser)
                     </p>
                     <p>
                       Telegram does not allow{" "}
@@ -114,6 +138,16 @@ export default function Profile() {
                       <span className="whitespace-nowrap">ngrok</span>) and add{" "}
                       <strong>that exact host</strong> in @BotFather → your bot →
                       Bot Settings → Domain.
+                    </p>
+                    <p>
+                      If the widget says the bot was not found, check{" "}
+                      <code className="rounded bg-zinc-950/50 px-1 text-[11px]">
+                        NEXT_PUBLIC_TELEGRAM_BOT_USERNAME
+                      </code>{" "}
+                      is the <strong>username</strong> only (e.g.{" "}
+                      <code className="text-[11px]">hotmmmanhwapremium_bot</code>
+                      ), not the display name and not with{" "}
+                      <code className="text-[11px]">@</code>.
                     </p>
                     <p className="text-amber-200/80">
                       Or test the widget on your production domain after setting{" "}
