@@ -1,11 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import axios from "axios";
 import { getBetterAuthProxySecret } from "@/lib/auth-proxy-secret";
-import { DEFAULT_TELEGRAM_REGISTER_PATH } from "@/lib/telegram-auth-paths";
+import { DEFAULT_TELEGRAM_BROWSER_REGISTER_PATH } from "@/lib/telegram-auth-paths";
 
 /**
  * Browser Telegram Login Widget → backend `POST /auth/telegram-register`.
- * Override with `TELEGRAM_REGISTER_PATH` (same as Mini App register).
+ * Override with `TELEGRAM_BROWSER_REGISTER_PATH`.
  */
 export default async function handler(
   req: NextApiRequest,
@@ -19,7 +19,8 @@ export default async function handler(
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
   const key = getBetterAuthProxySecret();
   const path =
-    process.env.TELEGRAM_REGISTER_PATH ?? DEFAULT_TELEGRAM_REGISTER_PATH;
+    process.env.TELEGRAM_BROWSER_REGISTER_PATH ??
+    DEFAULT_TELEGRAM_BROWSER_REGISTER_PATH;
 
   if (!apiUrl) {
     return res.status(500).json({ error: "NEXT_PUBLIC_API_URL is not set" });

@@ -4,7 +4,7 @@ import { getBetterAuthProxySecret } from "@/lib/auth-proxy-secret";
 import { DEFAULT_TELEGRAM_USER_EXISTS_PATH } from "@/lib/telegram-auth-paths";
 
 /**
- * Proxies to backend `/auth/telegram-user-exists` (GET or POST).
+ * Proxies to backend `/auth/telegram-user-exists` (POST JSON from client; GET optional).
  * Override path with `TELEGRAM_USER_EXISTS_PATH`.
  */
 export default async function handler(

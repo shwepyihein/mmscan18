@@ -1,7 +1,7 @@
 import { apiClient, setStoredAuthToken } from '@/lib/api-client';
-import type { UserProfile } from './types';
+import type { TelegramUserExistsResponse, UserProfile } from './types';
 
-export type { UserProfile } from './types';
+export type { TelegramUserExistsResponse, UserProfile } from './types';
 
 function pickToken(payload: unknown): string | null {
   if (!payload || typeof payload !== 'object') return null;
@@ -136,21 +136,26 @@ export function clearClientAuthSession(): void {
 }
 
 /**
- * Proxied check against backend `/auth/telegram-user-exists` (query params only).
- * Shape depends on your API (e.g. `telegramId`, `id`).
+ * Proxied `POST /auth/telegram-user-exists` with JSON `{ telegramId }`.
  */
-export async function fetchTelegramUserExists(
-  query: Record<string, string>,
-): Promise<unknown> {
-  const qs = new URLSearchParams(query).toString();
-  const res = await fetch(`/api/auth/telegram-user-exists?${qs}`, {
+export async function fetchTelegramUserExists(body: {
+  telegramId: string;
+}): Promise<TelegramUserExistsResponse> {
+  const res = await fetch('/api/auth/telegram-user-exists', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
+    body: JSON.stringify(body),
   });
-  const data = await res.json().catch(() => ({}));
+  const data = (await res.json().catch(() => ({}))) as
+    | TelegramUserExistsResponse
+    | Record<string, unknown>;
   if (!res.ok) {
     throw new Error(
-      typeof data?.error === 'string' ? data.error : 'Request failed',
+      typeof (data as Record<string, unknown>)?.error === 'string'
+        ? String((data as Record<string, unknown>).error)
+        : 'Request failed',
     );
   }
-  return data;
+  return data as TelegramUserExistsResponse;
 }

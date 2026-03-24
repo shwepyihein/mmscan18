@@ -2,8 +2,11 @@
 
 export const DEFAULT_TELEGRAM_BROWSER_LOGIN_PATH = "/auth/telegram-login";
 
-/** Telegram Mini App: `initData` sync / register. */
-export const DEFAULT_TELEGRAM_REGISTER_PATH = "/auth/telegram-register";
+/** Telegram Mini App: `initData` → upsert login (same as browser login). */
+export const DEFAULT_TELEGRAM_SYNC_PATH = "/auth/telegram-login";
 
-/** Optional: check if a Telegram user already exists before login/register. */
+/** Browser “Register” widget only (reject if telegramId exists). */
+export const DEFAULT_TELEGRAM_BROWSER_REGISTER_PATH = "/auth/telegram-register";
+
+/** Optional: check if a Telegram user already exists. */
 export const DEFAULT_TELEGRAM_USER_EXISTS_PATH = "/auth/telegram-user-exists";

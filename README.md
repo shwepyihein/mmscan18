@@ -31,16 +31,20 @@ Open [http://localhost:3000](http://localhost:3000).
    - Create/configure the bot; set domain to your **`NEXT_PUBLIC_SITE_URL`** host so the Login Widget and callback URL are allowed.
    - For Mini App: point the Web App URL to your deployed site.
 
-3. **Backend**
+3. **Backend (Nest-aligned)**
 
    - CORS / cookies: if the API is on another domain, configure `credentials` and `SameSite` so session cookies from login work in the browser.
    - Telegram auth is proxied from Next to your API:
-     - **Browser widget (login)** → `POST /auth/telegram-login` (via `/api/auth/telegram-browser`)
-     - **Browser widget (register)** → `POST /auth/telegram-register` (via `/api/auth/telegram-browser-register`)
-     - **Mini App `initData`** → `POST /auth/telegram-register` (via `/api/auth/telegram-sync`)
-     - **User exists** → `GET` or `POST /auth/telegram-user-exists` (via `/api/auth/telegram-user-exists`; optional `fetchTelegramUserExists` in `api/users`)
-   - Override paths with `TELEGRAM_BROWSER_LOGIN_PATH`, `TELEGRAM_REGISTER_PATH`, `TELEGRAM_USER_EXISTS_PATH` if your API differs.
-   - Profile: `GET /users/profile` (direct to `NEXT_PUBLIC_API_URL`).
+
+| Flow | Next.js route | Default upstream |
+|------|----------------|-------------------|
+| Browser widget **Login** | `POST /api/auth/telegram-browser` | `POST /auth/telegram-login` (upsert) |
+| Browser widget **Register** | `POST /api/auth/telegram-browser-register` | `POST /auth/telegram-register` (new only) |
+| **Mini App** `initData` | `POST /api/auth/telegram-sync` | `POST /auth/telegram-login` (upsert) |
+| User exists | `POST /api/auth/telegram-user-exists` | `POST /auth/telegram-user-exists` (JSON `{ telegramId }`) |
+
+   - Override paths with `TELEGRAM_BROWSER_LOGIN_PATH`, `TELEGRAM_SYNC_PATH`, `TELEGRAM_BROWSER_REGISTER_PATH`, `TELEGRAM_USER_EXISTS_PATH` if your API differs.
+   - Session: auth responses should include `accessToken` (stored client-side); `GET /auth/me` returns the current user (see `api/users`).
 
 4. **Health check**
 
@@ -52,6 +56,10 @@ Open [http://localhost:3000](http://localhost:3000).
    npm run build
    npm run start
    ```
+
+## Profile / `GET /auth/me`
+
+The UI expects `coins` for the wallet pill; if your Nest `getCurrentUser` does not return `coins` yet, the client defaults to `0` until you add a field or a separate wallet endpoint.
 
 ## Telegram login modes
 
