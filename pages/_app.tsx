@@ -1,43 +1,47 @@
 import "@/styles/globals.css";
+import { AuthProvider } from "@/components/AuthProvider";
+import { Layout } from "@/components/Layout";
 import type { AppProps } from "next/app";
-import { useEffect } from "react";
-import { 
-  initMiniApp, 
-  initViewport, 
-  initThemeParams, 
+import {
   bindMiniAppCSSVars,
   bindThemeParamsCSSVars,
-  bindViewportCSSVars
+  bindViewportCSSVars,
+  initMiniApp,
+  initThemeParams,
+  initViewport,
+  isTMA,
 } from "@telegram-apps/sdk";
-import { Layout } from "@/components/Layout";
+import { useEffect } from "react";
 
 export default function App({ Component, pageProps }: AppProps) {
   useEffect(() => {
-    try {
-      // Initialize components
-      const [miniApp] = initMiniApp();
-      const [themeParams] = initThemeParams();
-      
-      // Initialize viewport (async)
-      const [viewportPromise] = initViewport();
-      viewportPromise.then((viewport) => {
-        viewport.expand();
-        bindViewportCSSVars(viewport);
-      });
-
-      // Bind CSS variables
-      bindMiniAppCSSVars(miniApp, themeParams);
-      bindThemeParamsCSSVars(themeParams);
-
-      console.log("Telegram SDK initialized successfully");
-    } catch (error) {
-      console.error("Failed to initialize Telegram SDK:", error);
-    }
+    let cancelled = false;
+    isTMA().then((tma) => {
+      if (!tma || cancelled) return;
+      try {
+        const [miniApp] = initMiniApp();
+        const [themeParams] = initThemeParams();
+        const [viewportPromise] = initViewport();
+        viewportPromise.then((viewport) => {
+          viewport.expand();
+          bindViewportCSSVars(viewport);
+        });
+        bindMiniAppCSSVars(miniApp, themeParams);
+        bindThemeParamsCSSVars(themeParams);
+      } catch (error) {
+        console.error("Failed to initialize Telegram SDK:", error);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
-    <Layout>
-      <Component {...pageProps} />
-    </Layout>
+    <AuthProvider>
+      <Layout>
+        <Component {...pageProps} />
+      </Layout>
+    </AuthProvider>
   );
 }

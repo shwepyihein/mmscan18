@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Lock, Star, AlertCircle } from "lucide-react";
 import { useRouter } from "next/router";
+import { useAuth } from "@/components/AuthProvider";
 import { useUserStore } from "@/store/useUserStore";
 
 interface UnlockChapterDialogProps {
@@ -26,9 +27,18 @@ interface UnlockChapterDialogProps {
 export function UnlockChapterDialog({ open, onOpenChange, chapter, onSuccess }: UnlockChapterDialogProps) {
   const router = useRouter();
   const { profile, unlockChapter } = useUserStore();
-  const canAfford = profile && profile.coins >= (chapter?.price || 0);
+  const { isAuthenticated, isLoading } = useAuth();
+  const canAfford =
+    isAuthenticated &&
+    !!profile &&
+    profile.coins >= (chapter?.price || 0);
 
   const handleUnlock = () => {
+    if (!isAuthenticated) {
+      router.push("/profile");
+      onOpenChange(false);
+      return;
+    }
     if (chapter) {
       const result = unlockChapter(chapter.id, chapter.price);
       if (result.success) {
@@ -64,7 +74,16 @@ export function UnlockChapterDialog({ open, onOpenChange, chapter, onSuccess }: 
             </div>
           </div>
 
-          {!canAfford && (
+          {!isLoading && !isAuthenticated && (
+            <div className="flex items-center gap-3 p-4 bg-violet-500/5 border border-violet-500/15 rounded-xl">
+              <AlertCircle className="w-5 h-5 text-violet-400 flex-shrink-0" />
+              <p className="text-[11px] text-zinc-300 font-medium">
+                Sign in with Telegram on your profile to use coins and unlock chapters.
+              </p>
+            </div>
+          )}
+
+          {isAuthenticated && !canAfford && (
             <div className="flex items-center gap-3 p-4 bg-red-500/5 border border-red-500/10 rounded-xl">
               <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
               <div className="flex flex-col">
@@ -76,7 +95,24 @@ export function UnlockChapterDialog({ open, onOpenChange, chapter, onSuccess }: 
         </div>
 
         <DialogFooter className="flex-col gap-3">
-          {canAfford ? (
+          {isLoading ? (
+            <Button
+              disabled
+              className="w-full h-14 text-sm font-black rounded-xl opacity-50"
+            >
+              Checking session…
+            </Button>
+          ) : !isAuthenticated ? (
+            <Button
+              onClick={() => {
+                onOpenChange(false);
+                router.push("/profile");
+              }}
+              className="w-full bg-violet-600 hover:bg-violet-700 h-14 text-sm font-black rounded-xl uppercase tracking-widest shadow-lg shadow-violet-900/20"
+            >
+              Sign in with Telegram
+            </Button>
+          ) : canAfford ? (
             <Button 
               onClick={handleUnlock}
               className="w-full bg-violet-600 hover:bg-violet-700 h-14 text-sm font-black rounded-xl uppercase tracking-widest shadow-lg shadow-violet-900/20"

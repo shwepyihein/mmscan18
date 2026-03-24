@@ -292,6 +292,34 @@ export const getManhwaChaptersList = async (
   return data;
 };
 
+/** Unwrap common API envelopes to a chapter array for `chapters-list` responses. */
+export function parseChaptersListPayload(payload: unknown): ManhwaChapterSummary[] {
+  const raw = (() => {
+    if (Array.isArray(payload)) return payload;
+    if (payload && typeof payload === 'object') {
+      const p = payload as Record<string, unknown>;
+      const nested =
+        p.data ?? p.chapters ?? p.items ?? p.results ?? p.list;
+      if (Array.isArray(nested)) return nested;
+    }
+    return [];
+  })();
+  return parseLastChapters(raw) ?? [];
+}
+
+/** Same as getManhwaChaptersList but returns normalized rows; never throws. */
+export async function getManhwaChaptersListNormalized(
+  manhwaId: string,
+): Promise<ManhwaChapterSummary[]> {
+  if (!API_URL) return [];
+  try {
+    const data = await getManhwaChaptersList(manhwaId);
+    return parseChaptersListPayload(data);
+  } catch {
+    return [];
+  }
+}
+
 /** GET /public/manhwa/{manhwaId}/chapters — chapter range */
 export const getManhwaChaptersRange = async (
   manhwaId: string,

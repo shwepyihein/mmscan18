@@ -1,13 +1,27 @@
 import Head from "next/head";
-import { User, Wallet, History, LogOut, Star, Settings } from "lucide-react";
+import { User, Wallet, History, LogOut, Star, Settings, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useAuth } from "@/components/AuthProvider";
+import { TelegramLoginWidget } from "@/components/TelegramLoginWidget";
 import { useUserStore } from "@/store/useUserStore";
 import { useRouter } from "next/router";
+import { useState } from "react";
 
 export default function Profile() {
   const router = useRouter();
   const profile = useUserStore((state) => state.profile);
+  const {
+    status,
+    isTelegramMiniApp,
+    loginWithTelegramBrowser,
+    signOut,
+    isLoading,
+    error: authError,
+  } = useAuth();
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  const botName = (process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "").trim();
 
   return (
     <>
@@ -15,24 +29,74 @@ export default function Profile() {
         <title>Account | hotManhwammhub</title>
       </Head>
       <div className="p-4 flex flex-col gap-6">
-        <header className="flex items-center justify-between p-2">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-3xl bg-violet-600/10 border border-violet-500/20 flex items-center justify-center text-violet-500 shadow-lg shadow-violet-900/10">
-              <User size={32} />
+        <header className="flex items-center justify-between gap-2 p-2">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 shrink-0 rounded-full border border-zinc-800 bg-zinc-900/80 text-zinc-100 hover:bg-zinc-800"
+              onClick={() => router.back()}
+              aria-label="Back"
+            >
+              <ChevronLeft className="h-6 w-6" />
+            </Button>
+            <div className="w-14 h-14 rounded-2xl bg-violet-600/10 border border-violet-500/20 flex items-center justify-center text-violet-500 shadow-lg shadow-violet-900/10 shrink-0">
+              <User size={28} />
             </div>
-            <div className="flex flex-col">
-              <h1 className="text-xl font-black text-zinc-50 uppercase tracking-tight">
+            <div className="flex flex-col min-w-0">
+              <h1 className="text-xl font-black text-zinc-50 uppercase tracking-tight truncate">
                 {profile?.username || "Guest User"}
               </h1>
-              <p className="text-zinc-500 text-[11px] font-bold uppercase tracking-widest">
+              <p className="text-zinc-500 text-[11px] font-bold uppercase tracking-widest truncate">
                 ID: {profile?.id || "---"}
               </p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" className="text-zinc-600">
+          <Button variant="ghost" size="icon" className="text-zinc-600 shrink-0" aria-label="Settings">
             <Settings size={20} />
           </Button>
         </header>
+
+        {authError && isTelegramMiniApp ? (
+          <p className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-center text-sm text-red-400">
+            {authError}
+          </p>
+        ) : null}
+
+        {!isLoading && status === "unauthenticated" && !isTelegramMiniApp && (
+          <Card className="border-zinc-800 bg-zinc-900/60 rounded-3xl">
+            <CardContent className="flex flex-col items-center gap-4 p-6">
+              <p className="text-center text-sm font-medium text-zinc-400">
+                Log in with Telegram to sync your wallet and unlocks in the browser.
+              </p>
+              {botName ? (
+                <TelegramLoginWidget
+                  botName={botName}
+                  onAuth={async (u) => {
+                    setLoginError(null);
+                    try {
+                      await loginWithTelegramBrowser(u);
+                    } catch (e) {
+                      setLoginError(
+                        e instanceof Error ? e.message : "Telegram login failed",
+                      );
+                    }
+                  }}
+                />
+              ) : (
+                <p className="text-center text-xs text-zinc-600">
+                  Set{" "}
+                  <code className="text-zinc-500">NEXT_PUBLIC_TELEGRAM_BOT_USERNAME</code>{" "}
+                  for the login widget.
+                </p>
+              )}
+              {loginError ? (
+                <p className="text-center text-sm text-red-400">{loginError}</p>
+              ) : null}
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="bg-zinc-900 border-zinc-800 rounded-3xl overflow-hidden shadow-2xl shadow-zinc-950/50">
           <CardContent className="p-8 flex flex-col items-center justify-center gap-1 relative overflow-hidden">
@@ -77,7 +141,11 @@ export default function Profile() {
           
           <div className="h-px bg-zinc-900 my-4" />
           
-          <Button variant="ghost" className="justify-start gap-4 text-red-500/60 hover:text-red-400 hover:bg-red-500/5 h-14 rounded-2xl px-4">
+          <Button
+            variant="ghost"
+            className="justify-start gap-4 text-red-500/60 hover:text-red-400 hover:bg-red-500/5 h-14 rounded-2xl px-4"
+            onClick={() => signOut()}
+          >
             <div className="w-10 h-10 rounded-xl bg-red-500/5 flex items-center justify-center">
                <LogOut size={18} />
             </div>

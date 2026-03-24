@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import { Home, ShoppingBag, User, Search, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUserStore } from "@/store/useUserStore";
+import { useAuth } from "@/components/AuthProvider";
 
 const navItems = [
   { label: "Home", href: "/", icon: Home },
@@ -14,6 +15,7 @@ const navItems = [
 export function Navbar() {
   const router = useRouter();
   const profile = useUserStore((state) => state.profile);
+  const { isAuthenticated, isLoading } = useAuth();
 
   return (
     <div className="fixed bottom-8 left-0 right-0 z-50 flex justify-center px-6 pointer-events-none">
@@ -53,7 +55,7 @@ export function Navbar() {
           </div>
           <div className="flex flex-col -gap-1">
             <span className="text-[11px] font-black text-zinc-50 leading-none">
-              {profile?.coins || 0}
+              {isLoading ? "…" : !isAuthenticated ? "—" : profile?.coins ?? 0}
             </span>
             <span className="text-[8px] font-black text-amber-500 uppercase tracking-widest leading-none">
               Coins

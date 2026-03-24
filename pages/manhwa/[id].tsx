@@ -1,6 +1,7 @@
 import {
   getEpisodesForDetail,
   getManhwaById,
+  getManhwaChaptersListNormalized,
   isChapterNewByPublishedAt,
   type Manhwa,
   type ManhwaChapterSummary,
@@ -52,6 +53,10 @@ export default function ManhwaDetails() {
     manhwaTitle: string;
   } | null>(null);
   const [isUnlockDialogOpen, setIsUnlockDialogOpen] = useState(false);
+  const [chaptersForList, setChaptersForList] = useState<ManhwaChapterSummary[]>(
+    [],
+  );
+  const [isChaptersListLoading, setIsChaptersListLoading] = useState(false);
 
   const { isChapterUnlocked } = useUserStore();
 
@@ -74,17 +79,52 @@ export default function ManhwaDetails() {
     };
   }, [router.isReady, id]);
 
+  useEffect(() => {
+    if (!manhwa) {
+      setChaptersForList([]);
+      setIsChaptersListLoading(false);
+      return;
+    }
+    if (manhwa.chapters?.length) {
+      setChaptersForList(manhwa.chapters);
+      setIsChaptersListLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setChaptersForList([]);
+    setIsChaptersListLoading(true);
+    getManhwaChaptersListNormalized(manhwa.id)
+      .then((list) => {
+        if (!cancelled) setChaptersForList(list);
+      })
+      .finally(() => {
+        if (!cancelled) setIsChaptersListLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [manhwa]);
+
+  const chaptersForDetail = useMemo(() => {
+    if (!manhwa) return [];
+    if (manhwa.chapters?.length) return manhwa.chapters;
+    return chaptersForList;
+  }, [manhwa, chaptersForList]);
+
   const episodes = useMemo(
-    () => (manhwa ? getEpisodesForDetail(manhwa) : []),
-    [manhwa],
+    () =>
+      manhwa
+        ? getEpisodesForDetail({ ...manhwa, chapters: chaptersForDetail })
+        : [],
+    [manhwa, chaptersForDetail],
   );
 
   const firstChapterNo = useMemo(() => {
     if (!manhwa) return 1;
-    if (manhwa.chapters?.length)
-      return Math.min(...manhwa.chapters.map((c) => c.chapterNo));
+    if (chaptersForDetail.length)
+      return Math.min(...chaptersForDetail.map((c) => c.chapterNo));
     return manhwa.chaptersCount > 0 ? 1 : 1;
-  }, [manhwa]);
+  }, [manhwa, chaptersForDetail]);
 
   const resolveChapterPrice = (ch: ManhwaChapterSummary): number =>
     resolveEpisodeCoinPrice(ch.chapterNo, ch.coinPrice);
@@ -284,7 +324,11 @@ export default function ManhwaDetails() {
             value='chapters'
             className='flex flex-col divide-y divide-zinc-900/50'
           >
-            {episodes.length === 0 ? (
+            {isChaptersListLoading && !manhwa.chapters?.length ? (
+              <p className='p-8 text-center text-sm text-zinc-500'>
+                Loading episodes…
+              </p>
+            ) : episodes.length === 0 ? (
               <p className='p-8 text-center text-sm text-zinc-500'>
                 No episodes yet.
               </p>
