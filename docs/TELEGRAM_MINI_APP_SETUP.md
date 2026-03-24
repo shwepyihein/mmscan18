@@ -85,6 +85,7 @@ npm run migrate:auth
 | `BETTER_AUTH_URL` mismatch | Must equal the origin users use (scheme + host + port if non-default). |
 | DB not migrated | Run `npm run migrate:auth`. |
 | Opening outside Telegram | Mini App `initData` is empty or invalid — open the app **from Telegram** (not a normal browser tab). |
+| Debug shows `platform: "unknown"`, empty `initData`, empty `initDataUnsafe` | Telegram never launched a Mini App session. Re-check BotFather **Mini App URL** matches your HTTPS origin; open via **Menu / Mini App button**, not “Open in external browser” or a plain `https://` bookmark. |
 | CORS / cookies | Same site origin; `credentials: "include"` is already used. |
 | Nest errors | `NEXT_PUBLIC_API_URL` issues affect **profile/wallet after** login, not the Mini App Better Auth step. |
 

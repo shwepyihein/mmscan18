@@ -133,13 +133,37 @@ export function getTelegramWebAppDebugSnapshot(): Record<string, unknown> {
     };
   }
   const init = w.initData?.trim() ?? "";
+  const unsafe = w.initDataUnsafe;
+  const unsafeUser =
+    unsafe && typeof unsafe === "object" && "user" in unsafe
+      ? (unsafe as { user?: unknown }).user
+      : undefined;
+  const unsafeLooksEmpty =
+    !unsafe ||
+    (typeof unsafe === "object" && Object.keys(unsafe as object).length === 0);
+
+  let diagnosis: string | null = null;
+  if (init.length === 0) {
+    if (w.platform === "unknown" && unsafeLooksEmpty) {
+      diagnosis =
+        "platform=unknown and initDataUnsafe is empty: this is not a Telegram Mini App launch. The WebApp script is present, but Telegram did not attach launch data. Fix: BotFather → Configure Mini App / Menu Button URL = your HTTPS origin; open via that bot entry (Menu or inline button with Mini App), not “Open in browser” or a bare web tab.";
+    } else if (unsafeUser != null) {
+      diagnosis =
+        "initDataUnsafe has user but signed initData is empty — not a valid Mini App launch for server verification; open from the bot’s Mini App entry.";
+    } else {
+      diagnosis =
+        "Signed initData missing. Open from the bot’s Mini App (menu or keyboard). External browsers and many t.me link flows never receive initData.";
+    }
+  }
+
   return {
     hasWebApp: true,
     initDataLength: init.length,
     initDataEmpty: init.length === 0,
-    initDataUnsafe: w.initDataUnsafe ?? null,
+    initDataUnsafe: unsafe ?? null,
     version: w.version ?? null,
     platform: w.platform ?? null,
+    diagnosis,
     hint:
       init.length === 0
         ? "Signed initData is empty. Open the bot → Menu button / keyboard button that launches the Mini App. Opening the site URL in an external browser or a plain t.me link often leaves initData empty — Better Auth needs the signed string to verify."
