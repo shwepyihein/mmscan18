@@ -194,7 +194,9 @@ export default function Profile() {
                       <code className='rounded bg-zinc-950/50 px-1 py-0.5 text-[11px]'>
                         localhost
                       </code>{' '}
-                      for the Login Widget. Use a public HTTPS URL (e.g.{' '}
+                      for the Login Widget, so you will see{' '}
+                      <strong className='text-amber-200'>Bot domain invalid</strong>{' '}
+                      here. Use a public HTTPS URL (e.g.{' '}
                       <span className='whitespace-nowrap'>ngrok</span>) and
                       register <strong>that exact hostname</strong> in
                       @BotFather → Bot Settings → Domain.
@@ -245,6 +247,39 @@ export default function Profile() {
                       . Telegram requires the site origin to match the bot
                       domain in BotFather (including{' '}
                       <code className='text-[11px]'>www</code> vs non-www).
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+              {telegramDomainHint === null && browserHost ? (
+                <div
+                  role='status'
+                  className='flex gap-3 rounded-2xl border border-zinc-700/60 bg-zinc-950/40 p-4 text-left text-xs text-zinc-300'
+                >
+                  <AlertTriangle className='h-5 w-5 shrink-0 text-zinc-500' />
+                  <div className='space-y-2 leading-relaxed'>
+                    <p className='font-bold text-zinc-200'>
+                      If Telegram shows &quot;Bot domain invalid&quot;
+                    </p>
+                    <p>
+                      The hostname in your address bar must be registered for
+                      this bot. In @BotFather open your bot →{' '}
+                      <strong className='text-zinc-200'>Bot Settings</strong> →{' '}
+                      <strong className='text-zinc-200'>Configure Domain</strong>{' '}
+                      (or send <code className='text-[11px]'>/setdomain</code>).
+                      Add <strong className='text-zinc-200'>only</strong> the host
+                      name below (no <code className='text-[11px]'>https://</code>
+                      , no path):
+                    </p>
+                    <p className='rounded-lg border border-zinc-700/80 bg-zinc-900/80 px-3 py-2 font-mono text-[13px] text-emerald-300/90'>
+                      {browserHost}
+                    </p>
+                    <p className='text-zinc-500'>
+                      <code className='text-[11px] text-zinc-400'>www</code> and
+                      apex domains are different — register the one you actually
+                      use. Each preview URL (e.g. Vercel{' '}
+                      <code className='text-[11px]'>*.vercel.app</code>) needs
+                      its own entry unless you use a single custom domain.
                     </p>
                   </div>
                 </div>
