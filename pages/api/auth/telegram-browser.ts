@@ -1,9 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import axios from "axios";
+import { getBetterAuthProxySecret } from "@/lib/auth-proxy-secret";
+import { DEFAULT_TELEGRAM_BROWSER_LOGIN_PATH } from "@/lib/telegram-auth-paths";
 
 /**
  * Proxies Telegram Login Widget payload (browser) to the backend.
- * Set `TELEGRAM_BROWSER_LOGIN_PATH` if your Nest route differs (default `/users/sync`).
+ * Default upstream: `/auth/telegram-login`. Override with `TELEGRAM_BROWSER_LOGIN_PATH`.
  */
 export default async function handler(
   req: NextApiRequest,
@@ -15,10 +17,9 @@ export default async function handler(
   }
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-  const key = process.env.BETTER_AUTH_API_KEY;
-  /** Backend route that accepts Telegram Login Widget fields (see Telegram docs). */
+  const key = getBetterAuthProxySecret();
   const path =
-    process.env.TELEGRAM_BROWSER_LOGIN_PATH ?? "/users/telegram-login";
+    process.env.TELEGRAM_BROWSER_LOGIN_PATH ?? DEFAULT_TELEGRAM_BROWSER_LOGIN_PATH;
 
   if (!apiUrl) {
     return res.status(500).json({ error: "NEXT_PUBLIC_API_URL is not set" });

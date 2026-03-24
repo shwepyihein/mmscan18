@@ -1,9 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import axios from "axios";
+import { getBetterAuthProxySecret } from "@/lib/auth-proxy-secret";
+import { DEFAULT_TELEGRAM_REGISTER_PATH } from "@/lib/telegram-auth-paths";
 
 /**
- * Proxies Telegram Mini App `initData` to the backend so `BETTER_AUTH_API_KEY`
- * never ships to the browser.
+ * Proxies Telegram Mini App `initData` to the backend.
+ * Default upstream: `/auth/telegram-register`. Override with `TELEGRAM_REGISTER_PATH`.
  */
 export default async function handler(
   req: NextApiRequest,
@@ -15,13 +17,18 @@ export default async function handler(
   }
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-  const key = process.env.BETTER_AUTH_API_KEY;
+  const key = getBetterAuthProxySecret();
+  const path =
+    process.env.TELEGRAM_REGISTER_PATH ?? DEFAULT_TELEGRAM_REGISTER_PATH;
   if (!apiUrl) {
     return res.status(500).json({ error: "NEXT_PUBLIC_API_URL is not set" });
   }
 
+  const base = apiUrl.replace(/\/$/, "");
+  const pathNorm = path.startsWith("/") ? path : `/${path}`;
+
   try {
-    const response = await axios.post(`${apiUrl}/users/sync`, req.body, {
+    const response = await axios.post(`${base}${pathNorm}`, req.body, {
       headers: {
         "Content-Type": "application/json",
         ...(key ? { Authorization: `Bearer ${key}` } : {}),
@@ -36,7 +43,7 @@ export default async function handler(
     }
 
     return res.status(response.status).json(response.data);
-  } catch (e) {
+  } catch {
     return res.status(502).json({ error: "Upstream sync failed" });
   }
 }

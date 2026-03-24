@@ -1,24 +1,23 @@
-import { apiClient, setStoredAuthToken } from "@/lib/api-client";
-import type { UserProfile } from "./types";
+import { apiClient, setStoredAuthToken } from '@/lib/api-client';
+import type { UserProfile } from './types';
 
-export type { UserProfile } from "./types";
+export type { UserProfile } from './types';
 
 function pickToken(payload: unknown): string | null {
-  if (!payload || typeof payload !== "object") return null;
+  if (!payload || typeof payload !== 'object') return null;
   const p = payload as Record<string, unknown>;
-  const t =
-    p.accessToken ?? p.token ?? p.access_token ?? p.jwt;
-  return typeof t === "string" && t.length > 0 ? t : null;
+  const t = p.accessToken ?? p.token ?? p.access_token ?? p.jwt;
+  return typeof t === 'string' && t.length > 0 ? t : null;
 }
 
 function unwrapPayload(payload: unknown): Record<string, unknown> | null {
   const raw =
-    payload && typeof payload === "object"
+    payload && typeof payload === 'object'
       ? (payload as Record<string, unknown>)
       : null;
   if (!raw) return null;
   const inner = raw.data;
-  if (inner && typeof inner === "object" && !Array.isArray(inner)) {
+  if (inner && typeof inner === 'object' && !Array.isArray(inner)) {
     return inner as Record<string, unknown>;
   }
   return raw;
@@ -28,18 +27,17 @@ function normalizeProfile(payload: unknown): UserProfile | null {
   const p = unwrapPayload(payload);
   if (!p) return null;
   const user = (p.user ?? p.profile) as Record<string, unknown> | undefined;
-  const src = user && typeof user === "object" ? user : p;
+  const src = user && typeof user === 'object' ? user : p;
   const id = src.id ?? src._id;
   if (id == null) return null;
-  const telegramId =
-    src.telegramId ?? src.telegram_id ?? src.telegramID ?? id;
+  const telegramId = src.telegramId ?? src.telegram_id ?? src.telegramID ?? id;
   const coins = Number(src.coins ?? 0);
   const username =
-    typeof src.username === "string"
+    typeof src.username === 'string'
       ? src.username
-      : typeof src.first_name === "string"
+      : typeof src.first_name === 'string'
         ? src.first_name
-        : typeof src.firstName === "string"
+        : typeof src.firstName === 'string'
           ? src.firstName
           : undefined;
   return {
@@ -52,29 +50,28 @@ function normalizeProfile(payload: unknown): UserProfile | null {
 
 function applyAuthPayload(payload: unknown): UserProfile | null {
   const inner = unwrapPayload(payload);
-  const token =
-    pickToken(payload) ?? (inner ? pickToken(inner) : null);
+  const token = pickToken(payload) ?? (inner ? pickToken(inner) : null);
   if (token) setStoredAuthToken(token);
   return normalizeProfile(payload);
 }
 
 /** Telegram Mini App: sync `initData` (proxied — API key stays server-side). */
 export async function syncTelegramUser(initData: string): Promise<UserProfile> {
-  const res = await fetch("/api/auth/telegram-sync", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
+  const res = await fetch('/api/auth/telegram-sync', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify({ initData }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(
-      typeof data?.error === "string" ? data.error : "Telegram sync failed",
+      typeof data?.error === 'string' ? data.error : 'Telegram sync failed',
     );
   }
   const profile = applyAuthPayload(data);
   if (!profile) {
-    throw new Error("Invalid profile response");
+    throw new Error('Invalid profile response');
   }
   return profile;
 }
@@ -83,34 +80,54 @@ export async function syncTelegramUser(initData: string): Promise<UserProfile> {
 export async function loginWithTelegramWidget(
   widgetFields: Record<string, string>,
 ): Promise<UserProfile> {
-  const res = await fetch("/api/auth/telegram-browser", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
+  const res = await fetch('/api/auth/telegram-browser', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify(widgetFields),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(
-      typeof data?.error === "string" ? data.error : "Telegram login failed",
+      typeof data?.error === 'string' ? data.error : 'Telegram login failed',
     );
   }
   const profile = applyAuthPayload(data);
   if (!profile) {
-    throw new Error("Invalid profile response");
+    throw new Error('Invalid profile response');
   }
   return profile;
 }
 
 export async function fetchCurrentProfile(): Promise<UserProfile> {
-  const { data } = await apiClient.get<unknown>(`/users/profile`);
+  const { data } = await apiClient.get<unknown>(`/auth/me`);
   const profile = applyAuthPayload(data) ?? normalizeProfile(data);
   if (!profile) {
-    throw new Error("Invalid profile");
+    throw new Error('Invalid profile');
   }
   return profile;
 }
 
 export function clearClientAuthSession(): void {
   setStoredAuthToken(null);
+}
+
+/**
+ * Proxied check against backend `/auth/telegram-user-exists` (query params only).
+ * Shape depends on your API (e.g. `telegramId`, `id`).
+ */
+export async function fetchTelegramUserExists(
+  query: Record<string, string>,
+): Promise<unknown> {
+  const qs = new URLSearchParams(query).toString();
+  const res = await fetch(`/api/auth/telegram-user-exists?${qs}`, {
+    credentials: 'include',
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      typeof data?.error === 'string' ? data.error : 'Request failed',
+    );
+  }
+  return data;
 }

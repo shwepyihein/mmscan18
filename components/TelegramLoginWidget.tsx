@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { getPublicSiteUrl } from "@/lib/site-url";
 
 export interface TelegramUser {
   id: number;
@@ -12,7 +13,11 @@ export interface TelegramUser {
 
 interface TelegramLoginWidgetProps {
   botName: string;
-  onAuth: (user: TelegramUser) => void;
+  /**
+   * Same-page login (localhost / when `NEXT_PUBLIC_SITE_URL` is unset).
+   * Not used when redirect mode is active (production with `NEXT_PUBLIC_SITE_URL`).
+   */
+  onAuth?: (user: TelegramUser) => void | Promise<void>;
   buttonSize?: "large" | "medium" | "small";
   cornerRadius?: number;
   requestAccess?: "write" | "read";
@@ -26,8 +31,6 @@ export function TelegramLoginWidget({
   requestAccess = "write",
 }: TelegramLoginWidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  
-  // Create a ref for the callback so it's fresh in the closure
   const onAuthRef = useRef(onAuth);
   useEffect(() => {
     onAuthRef.current = onAuth;
@@ -36,12 +39,21 @@ export function TelegramLoginWidget({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Define the global callback
-    (window as any).onTelegramAuth = (user: TelegramUser) => {
-      onAuthRef.current(user);
-    };
+    const siteUrl = getPublicSiteUrl();
+    const useRedirect = Boolean(siteUrl);
 
-    // Clear previous widget
+    if (!useRedirect && typeof onAuthRef.current !== "function") {
+      return;
+    }
+
+    if (!useRedirect) {
+      (window as unknown as { onTelegramAuth?: (user: TelegramUser) => void }).onTelegramAuth = (
+        user: TelegramUser,
+      ) => {
+        void onAuthRef.current?.(user);
+      };
+    }
+
     containerRef.current.innerHTML = "";
 
     const script = document.createElement("script");
@@ -51,12 +63,22 @@ export function TelegramLoginWidget({
     script.setAttribute("data-size", buttonSize);
     script.setAttribute("data-radius", cornerRadius.toString());
     script.setAttribute("data-request-access", requestAccess);
-    script.setAttribute("data-onauth", "onTelegramAuth(user)");
+
+    if (useRedirect && siteUrl) {
+      script.setAttribute(
+        "data-auth-url",
+        `${siteUrl}/auth/telegram-callback`,
+      );
+    } else {
+      script.setAttribute("data-onauth", "onTelegramAuth(user)");
+    }
 
     containerRef.current.appendChild(script);
 
     return () => {
-      delete (window as any).onTelegramAuth;
+      if (!useRedirect) {
+        delete (window as unknown as { onTelegramAuth?: unknown }).onTelegramAuth;
+      }
       if (containerRef.current) {
         containerRef.current.innerHTML = "";
       }

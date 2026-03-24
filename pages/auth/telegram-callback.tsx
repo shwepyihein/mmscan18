@@ -31,7 +31,11 @@ export default function TelegramAuthCallbackPage() {
     startedRef.current = true;
     loginWithTelegramBrowser(fields)
       .then(() => {
-        router.replace("/");
+        const next =
+          typeof router.query.next === "string" && router.query.next.startsWith("/")
+            ? router.query.next
+            : "/profile";
+        router.replace(next);
       })
       .catch((e: unknown) => {
         startedRef.current = false;
