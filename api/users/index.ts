@@ -55,54 +55,6 @@ function applyAuthPayload(payload: unknown): UserProfile | null {
   return normalizeProfile(payload);
 }
 
-/** Browser: Telegram Login Widget → Better Auth (also used from `/auth/telegram-callback`). */
-export async function loginWithTelegramWidget(
-  widgetFields: Record<string, string>,
-): Promise<UserProfile> {
-  const res = await fetch("/api/auth/telegram/signin", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(widgetFields),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(
-      typeof data?.message === "string" ? data.message : "Telegram login failed",
-    );
-  }
-  const profile = normalizeProfile(data);
-  if (!profile) {
-    throw new Error("Invalid profile response");
-  }
-  return profile;
-}
-
-/** Browser: same as `loginWithTelegramWidget` (`better-auth-telegram` auto-creates users). */
-export async function registerWithTelegramWidget(
-  widgetFields: Record<string, string>,
-): Promise<UserProfile> {
-  const res = await fetch("/api/auth/telegram/signin", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(widgetFields),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(
-      typeof data?.message === "string"
-        ? data.message
-        : "Telegram register failed",
-    );
-  }
-  const profile = normalizeProfile(data);
-  if (!profile) {
-    throw new Error("Invalid profile response");
-  }
-  return profile;
-}
-
 /** Nest (or other backend) profile; sends Better Auth JWT from `apiClient`. */
 export async function fetchCurrentProfile(): Promise<UserProfile> {
   const { data } = await apiClient.get<unknown>(`/auth/me`);

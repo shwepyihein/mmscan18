@@ -13,8 +13,6 @@ export interface TelegramUser {
   hash: string;
 }
 
-export type TelegramAuthMode = "login" | "register";
-
 interface TelegramLoginWidgetProps {
   botName: string;
   /** Extra classes on the widget wrapper (min-height helps while the iframe loads). */
@@ -24,10 +22,8 @@ interface TelegramLoginWidgetProps {
    * Not used when redirect mode is active (production with `NEXT_PUBLIC_SITE_URL`).
    */
   onAuth?: (user: TelegramUser) => void | Promise<void>;
-  /** Must be unique if multiple widgets mount (e.g. `onTelegramAuthLogin` / `onTelegramAuthRegister`). */
+  /** Must be unique if multiple widgets mount. */
   globalCallbackName?: string;
-  /** Sent as `?mode=` on redirect callback URL. */
-  authMode?: TelegramAuthMode;
   buttonSize?: "large" | "medium" | "small";
   cornerRadius?: number;
   requestAccess?: "write" | "read";
@@ -38,7 +34,6 @@ export function TelegramLoginWidget({
   className = "",
   onAuth,
   globalCallbackName = "onTelegramAuth",
-  authMode = "login",
   buttonSize = "large",
   cornerRadius = 8,
   requestAccess = "write",
@@ -82,7 +77,6 @@ export function TelegramLoginWidget({
 
     if (useRedirect && siteUrl) {
       const url = new URL(`${siteUrl}/auth/telegram-callback`);
-      url.searchParams.set("mode", authMode);
       script.setAttribute("data-auth-url", url.toString());
     } else {
       script.setAttribute("data-onauth", `${globalCallbackName}(user)`);
@@ -98,14 +92,7 @@ export function TelegramLoginWidget({
         containerRef.current.innerHTML = "";
       }
     };
-  }, [
-    botName,
-    buttonSize,
-    cornerRadius,
-    requestAccess,
-    globalCallbackName,
-    authMode,
-  ]);
+  }, [botName, buttonSize, cornerRadius, requestAccess, globalCallbackName]);
 
   return (
     <div

@@ -57,6 +57,37 @@ export const authClient = createAuthClient({
   plugins: [jwtClient(), telegramClient()],
 });
 
+function toStringFields(fields: object): Record<string, string> {
+  const stringFields: Record<string, string> = {};
+  for (const [k, v] of Object.entries(fields)) {
+    if (v === undefined || v === null) continue;
+    stringFields[k] = typeof v === "string" ? v : String(v);
+  }
+  return stringFields;
+}
+
+/**
+ * Telegram Login Widget (browser) or `/auth/telegram-callback` query → Better Auth
+ * `POST /api/auth/telegram/signin`. First visit creates the user; later visits sign in.
+ * Does not call Nest (`NEXT_PUBLIC_API_URL` / `/auth/telegram-login`).
+ */
+export async function signInWithTelegramBrowser(fields: object): Promise<void> {
+  const stringFields = toStringFields(fields);
+  const base = resolveBaseURL();
+  const res = await fetch(`${base}/api/auth/telegram/signin`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(stringFields),
+  });
+  const body = (await res.json().catch(() => ({}))) as { message?: string };
+  if (!res.ok) {
+    throw new Error(
+      typeof body?.message === "string" ? body.message : "Telegram sign-in failed",
+    );
+  }
+}
+
 /** True when Telegram injects `window.Telegram.WebApp` (Mini App WebView). */
 export function isTelegramMiniAppEnvironment(): boolean {
   if (typeof window === "undefined") return false;
@@ -174,6 +205,36 @@ export function getTelegramWebAppDebugSnapshot(): Record<string, unknown> {
 /**
  * Wait for non-empty `initData` (after `ready()`, Telegram may fill it shortly).
  */
+/** One reload per tab session if Telegram WebApp exists but `initData` is still empty (race / cold start). */
+const TELEGRAM_INITDATA_RELOAD_KEY = "tg_miniapp_initdata_reload_v1";
+
+/**
+ * If `Telegram.WebApp` is present, `initData` is empty, and we have not reloaded this tab yet,
+ * set a flag and reload. Returns `true` if a reload was triggered (navigation follows).
+ */
+export function reloadOnceForTelegramInitData(): boolean {
+  if (typeof window === "undefined") return false;
+  if (!window.Telegram?.WebApp) return false;
+  const raw = window.Telegram.WebApp.initData?.trim() ?? "";
+  if (raw) return false;
+  if (sessionStorage.getItem(TELEGRAM_INITDATA_RELOAD_KEY) === "1") {
+    return false;
+  }
+  sessionStorage.setItem(TELEGRAM_INITDATA_RELOAD_KEY, "1");
+  window.location.reload();
+  return true;
+}
+
+/** Call after successful Mini App sign-in so a later empty `initData` edge case can retry once. */
+export function clearTelegramInitDataReloadFlag(): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(TELEGRAM_INITDATA_RELOAD_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export async function waitForTelegramInitData(options?: {
   timeoutMs?: number;
   intervalMs?: number;
@@ -233,4 +294,5 @@ export async function signInTelegramMiniApp(): Promise<void> {
   if (result?.error) {
     throw new Error(result.error.message ?? "Telegram Mini App sign-in failed");
   }
+  clearTelegramInitDataReloadFlag();
 }

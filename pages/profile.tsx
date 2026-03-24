@@ -32,7 +32,7 @@ export default function Profile() {
   const {
     status,
     isTelegramMiniApp,
-    loginWithTelegramBrowser,
+    signInWithTelegramBrowser,
     signOut,
     isLoading,
     isAuthenticated,
@@ -230,19 +230,19 @@ export default function Profile() {
             <CardContent className='flex flex-col gap-6 p-6'>
               <div className='text-center space-y-1'>
                 <h2 className='text-sm font-bold text-zinc-200'>
-                  Sign in with Telegram
+                  Continue with Telegram
                 </h2>
                 <p className='text-xs text-zinc-500'>
-                  Sessions are created by{' '}
-                  <span className='text-zinc-400'>Better Auth</span> on this
-                  site (
-                  <code className='text-[10px] text-zinc-500'>/api/auth/*</code>
-                  ).
+                  Account is created or linked on{' '}
+                  <span className='text-zinc-400'>this site</span> via Better Auth (
+                  <code className='text-[10px] text-zinc-500'>POST /api/auth/telegram/signin</code>
+                  ). Your Nest API (
+                  <code className='text-[10px] text-zinc-500'>NEXT_PUBLIC_API_URL</code>
+                  ) is used for profile/wallet after login, not for this step.
                 </p>
               </div>
               <p className='text-center text-sm font-medium text-zinc-400'>
-                Link your account to sync wallet and unlocks. Use Telegram&apos;s
-                sign-in below.
+                Link your account to sync wallet and unlocks.
               </p>
               {telegramDomainHint === 'localhost' ? (
                 <div
@@ -362,13 +362,12 @@ export default function Profile() {
                 <div className='flex w-full max-w-md flex-col gap-3 rounded-2xl border border-zinc-800/80 bg-zinc-950/40 p-5 mx-auto'>
                   <TelegramLoginWidget
                     botName={botName}
-                    authMode='login'
                     className='min-h-[72px]'
                     globalCallbackName='onTelegramAuthProfile'
                     onAuth={async (u) => {
                       setTelegramError(null);
                       try {
-                        await loginWithTelegramBrowser(u);
+                        await signInWithTelegramBrowser(u);
                       } catch (e) {
                         setTelegramError(
                           e instanceof Error

@@ -8,7 +8,7 @@ const QUERY_SKIP = new Set(["mode", "next"]);
 /** Telegram Login Widget redirects here with `id`, `hash`, `auth_date`, etc. */
 export default function TelegramAuthCallbackPage() {
   const router = useRouter();
-  const { loginWithTelegramBrowser } = useAuth();
+  const { signInWithTelegramBrowser } = useAuth();
   const [message, setMessage] = useState("Signing in with Telegram…");
   const [isError, setIsError] = useState(false);
   const startedRef = useRef(false);
@@ -32,7 +32,7 @@ export default function TelegramAuthCallbackPage() {
     }
 
     startedRef.current = true;
-    loginWithTelegramBrowser(fields)
+    signInWithTelegramBrowser(fields)
       .then(() => {
         const next =
           typeof router.query.next === "string" && router.query.next.startsWith("/")
@@ -47,12 +47,7 @@ export default function TelegramAuthCallbackPage() {
           e instanceof Error ? e.message : "Could not complete Telegram sign-in.",
         );
       });
-  }, [
-    router.isReady,
-    router.query,
-    loginWithTelegramBrowser,
-    router,
-  ]);
+  }, [router.isReady, router.query, signInWithTelegramBrowser, router]);
 
   return (
     <>

@@ -1,7 +1,9 @@
 import { fetchCurrentProfile, clearClientAuthSession } from "@/api/users";
 import {
   authClient,
+  reloadOnceForTelegramInitData,
   signInTelegramMiniApp,
+  signInWithTelegramBrowser as exchangeTelegramWidgetForSession,
   waitForTelegramInitData,
   waitForTelegramWebApp,
 } from "@/lib/auth-client";
@@ -23,10 +25,8 @@ type AuthContextValue = {
   status: AuthStatus;
   isTelegramMiniApp: boolean;
   error: string | null;
-  /** Browser: Telegram Login Widget payload or `/auth/telegram-callback` query. */
-  loginWithTelegramBrowser: (fields: object) => Promise<void>;
-  /** Browser: same widget payload; creates a new Better Auth user. */
-  registerWithTelegramBrowser: (fields: object) => Promise<void>;
+  /** Browser: Telegram Login Widget or `/auth/telegram-callback` → Better Auth (sign-in + create user). Not Nest. */
+  signInWithTelegramBrowser: (fields: object) => Promise<void>;
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
   /** Convenience for UI */
@@ -60,15 +60,6 @@ function fallbackProfileFromSessionUser(user: {
     username: user.name ?? undefined,
     coins: 0,
   };
-}
-
-function toStringFields(fields: object): Record<string, string> {
-  const stringFields: Record<string, string> = {};
-  for (const [k, v] of Object.entries(fields)) {
-    if (v === undefined || v === null) continue;
-    stringFields[k] = typeof v === "string" ? v : String(v);
-  }
-  return stringFields;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -126,6 +117,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const initData = await waitForTelegramInitData();
       if (cancelled) return;
       if (!initData?.trim()) {
+        if (reloadOnceForTelegramInitData()) {
+          return;
+        }
         setTmaBootstrapped(true);
         return;
       }
@@ -190,33 +184,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [sessionError]);
 
-  const signInWithTelegramWidget = useCallback(
+  const signInWithTelegramBrowser = useCallback(
     async (fields: object) => {
       setError(null);
-      const res = await fetch("/api/auth/telegram/signin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(toStringFields(fields)),
-      });
-      const body = (await res.json().catch(() => ({}))) as {
-        message?: string;
-      };
-      if (!res.ok) {
-        throw new Error(
-          typeof body?.message === "string" ? body.message : "Telegram login failed",
-        );
-      }
+      await exchangeTelegramWidgetForSession(fields);
       await refetch();
       await refreshJwtForNest();
       await refreshProfile();
     },
     [refetch, refreshProfile],
   );
-
-  const loginWithTelegramBrowser = signInWithTelegramWidget;
-
-  const registerWithTelegramBrowser = signInWithTelegramWidget;
 
   const isLoading = status === "loading" || isPending || !tmaBootstrapped;
   const isAuthenticated = status === "authenticated";
@@ -226,8 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       status,
       isTelegramMiniApp,
       error,
-      loginWithTelegramBrowser,
-      registerWithTelegramBrowser,
+      signInWithTelegramBrowser,
       refreshProfile,
       signOut,
       isAuthenticated,
@@ -237,8 +213,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       status,
       isTelegramMiniApp,
       error,
-      loginWithTelegramBrowser,
-      registerWithTelegramBrowser,
+      signInWithTelegramBrowser,
       refreshProfile,
       signOut,
       isAuthenticated,
