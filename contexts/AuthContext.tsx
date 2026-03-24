@@ -1,12 +1,11 @@
+import { fetchCurrentProfile, clearClientAuthSession } from "@/api/users";
 import {
-  fetchCurrentProfile,
-  syncTelegramUser,
-  clearClientAuthSession,
-} from "@/api/users";
-import { authClient } from "@/lib/auth-client";
+  authClient,
+  isTelegramMiniAppEnvironment,
+  signInTelegramMiniApp,
+} from "@/lib/auth-client";
 import { setStoredAuthToken } from "@/lib/api-client";
 import { useUserStore } from "@/store/useUserStore";
-import { isTMA, retrieveLaunchParams } from "@telegram-apps/sdk";
 import {
   createContext,
   useCallback,
@@ -106,28 +105,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [logoutStore]);
 
   /**
-   * Mini App: validate `initData`, reuse session when it already matches this
-   * Telegram user, otherwise sign in (Better Auth creates the user on first open).
+   * Mini App: better-auth-telegram `signInWithMiniApp` using `Telegram.WebApp.initData`
+   * (no @telegram-apps/sdk — detection via `window.Telegram.WebApp`).
    */
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const tma = await isTMA();
+      if (typeof window === "undefined") {
+        setTmaBootstrapped(true);
+        return;
+      }
+      const inMiniApp = isTelegramMiniAppEnvironment();
       if (cancelled) return;
-      setIsTelegramMiniApp(tma);
-      if (!tma) {
+      setIsTelegramMiniApp(inMiniApp);
+      if (!inMiniApp) {
+        setTmaBootstrapped(true);
+        return;
+      }
+      if (!window.Telegram?.WebApp?.initData?.trim()) {
         setTmaBootstrapped(true);
         return;
       }
       try {
-        const lp = retrieveLaunchParams();
-        const raw = lp.initDataRaw;
-        if (!raw) {
-          setTmaBootstrapped(true);
-          return;
-        }
-        await syncTelegramUser(raw);
+        await signInTelegramMiniApp();
         await refetch();
+        await refreshJwtForNest();
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : "Telegram sync failed");

@@ -39,6 +39,10 @@ export default function Profile() {
     'localhost' | 'host_mismatch' | null
   >(null);
   const [browserHost, setBrowserHost] = useState('');
+  /** Mini App: JSON snapshot of `initData` for debugging (dev-only visibility). */
+  const [miniAppInitDataJson, setMiniAppInitDataJson] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -53,6 +57,50 @@ export default function Profile() {
     }
     setTelegramDomainHint(null);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !isTelegramMiniApp) {
+      setMiniAppInitDataJson(null);
+      return;
+    }
+    const raw = window.Telegram?.WebApp?.initData?.trim() ?? '';
+    if (!raw) {
+      setMiniAppInitDataJson(
+        JSON.stringify(
+          { initData: null, note: 'empty — open from Telegram Mini App' },
+          null,
+          2,
+        ),
+      );
+      return;
+    }
+    try {
+      const params = new URLSearchParams(raw);
+      const parsed: Record<string, unknown> = {};
+      for (const [key, value] of Array.from(params.entries())) {
+        if (key === 'user' || key === 'receiver' || key === 'chat') {
+          try {
+            parsed[key] = JSON.parse(value) as unknown;
+          } catch {
+            parsed[key] = value;
+          }
+        } else if (key === 'auth_date' || key === 'can_send_after') {
+          parsed[key] = Number(value);
+        } else {
+          parsed[key] = value;
+        }
+      }
+      setMiniAppInitDataJson(
+        JSON.stringify(
+          { initDataRaw: raw, parsed, initDataLength: raw.length },
+          null,
+          2,
+        ),
+      );
+    } catch {
+      setMiniAppInitDataJson(JSON.stringify({ initDataRaw: raw }, null, 2));
+    }
+  }, [isTelegramMiniApp]);
 
   const botName = normalizeTelegramBotUsername(
     process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? '',
@@ -101,6 +149,17 @@ export default function Profile() {
           </Button>
         </header>
 
+        {isTelegramMiniApp && miniAppInitDataJson ? (
+          <div className='rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3'>
+            <p className='mb-2 text-[10px] font-black uppercase tracking-widest text-emerald-500/90'>
+              Mini App · initData (debug)
+            </p>
+            <pre className='max-h-48 overflow-auto whitespace-pre-wrap break-all text-[10px] leading-relaxed text-zinc-400'>
+              {miniAppInitDataJson}
+            </pre>
+          </div>
+        ) : null}
+
         {authError && isTelegramMiniApp ? (
           <div
             role='alert'
@@ -132,14 +191,15 @@ export default function Profile() {
                   <code className='text-zinc-500'>npm run migrate:auth</code>).
                 </li>
                 <li>
-                  Mini App flow: reuse session when it matches the Telegram user
-                  in <code className='text-zinc-500'>initData</code>, else{' '}
+                  Mini App: better-auth-telegram{' '}
+                  <code className='text-zinc-500'>autoSignInFromMiniApp</code> →{' '}
                   <code className='text-zinc-500'>
                     POST /api/auth/telegram/miniapp/signin
                   </code>{' '}
-                  (server verifies hash; first open creates the user). If sign-in
-                  fails, check <code className='text-zinc-500'>TELEGRAM_BOT_TOKEN</code>{' '}
-                  matches the bot and reopen the Mini App (initData expires).
+                  with <code className='text-zinc-500'>Telegram.WebApp.initData</code>.
+                  If sign-in fails, check{' '}
+                  <code className='text-zinc-500'>TELEGRAM_BOT_TOKEN</code> and reopen
+                  the Mini App (initData expires).
                 </li>
                 <li>
                   Wallet data may call Nest (
