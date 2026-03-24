@@ -1,7 +1,7 @@
 import { apiClient, setStoredAuthToken } from "@/lib/api-client";
-import type { TelegramUserExistsResponse, UserProfile } from "./types";
+import type { UserProfile } from "./types";
 
-export type { TelegramUserExistsResponse, UserProfile } from "./types";
+export type { UserProfile } from "./types";
 
 function pickToken(payload: unknown): string | null {
   if (!payload || typeof payload !== "object") return null;
@@ -75,7 +75,7 @@ function errorMessageFromResponse(
 
 /** Telegram Mini App: verify `initData` with Better Auth (session cookie). */
 export async function syncTelegramUser(initData: string): Promise<UserProfile> {
-  const res = await fetch("/api/auth/telegram/sync-mini-app", {
+  const res = await fetch("/api/auth/telegram/miniapp/signin", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -102,7 +102,7 @@ export async function syncTelegramUser(initData: string): Promise<UserProfile> {
 export async function loginWithTelegramWidget(
   widgetFields: Record<string, string>,
 ): Promise<UserProfile> {
-  const res = await fetch("/api/auth/telegram/sign-in-widget", {
+  const res = await fetch("/api/auth/telegram/signin", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -121,11 +121,11 @@ export async function loginWithTelegramWidget(
   return profile;
 }
 
-/** Browser: Telegram Login Widget → register-only flow. */
+/** Browser: same as `loginWithTelegramWidget` (`better-auth-telegram` auto-creates users). */
 export async function registerWithTelegramWidget(
   widgetFields: Record<string, string>,
 ): Promise<UserProfile> {
-  const res = await fetch("/api/auth/telegram/register-widget", {
+  const res = await fetch("/api/auth/telegram/signin", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -158,27 +158,4 @@ export async function fetchCurrentProfile(): Promise<UserProfile> {
 
 export function clearClientAuthSession(): void {
   setStoredAuthToken(null);
-}
-
-/** Whether a Telegram id already has a Better Auth account (for register UX). */
-export async function fetchTelegramUserExists(body: {
-  telegramId: string;
-}): Promise<TelegramUserExistsResponse> {
-  const res = await fetch("/api/auth/telegram/user-exists", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(body),
-  });
-  const data = (await res.json().catch(() => ({}))) as
-    | TelegramUserExistsResponse
-    | Record<string, unknown>;
-  if (!res.ok) {
-    throw new Error(
-      typeof (data as Record<string, unknown>)?.message === "string"
-        ? String((data as Record<string, unknown>).message)
-        : "Request failed",
-    );
-  }
-  return data as TelegramUserExistsResponse;
 }

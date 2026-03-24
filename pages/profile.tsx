@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   History,
   LogOut,
+  Send,
   Settings,
   Star,
   User,
@@ -29,14 +30,13 @@ export default function Profile() {
     status,
     isTelegramMiniApp,
     loginWithTelegramBrowser,
-    registerWithTelegramBrowser,
     signOut,
     isLoading,
     isAuthenticated,
     error: authError,
   } = useAuth();
-  const [loginError, setLoginError] = useState<string | null>(null);
-  const [registerError, setRegisterError] = useState<string | null>(null);
+  const [telegramError, setTelegramError] = useState<string | null>(null);
+  const [showTelegramWidget, setShowTelegramWidget] = useState(false);
   const [telegramDomainHint, setTelegramDomainHint] = useState<
     'localhost' | 'host_mismatch' | null
   >(null);
@@ -66,7 +66,7 @@ export default function Profile() {
       <Head>
         <title>Account | hotManhwammhub</title>
       </Head>
-      <div className='p-4 flex flex-col gap-6'>
+      <div className='flex flex-col gap-6 py-4 md:gap-8 md:py-8'>
         <header className='flex items-center justify-between gap-2 p-2'>
           <div className='flex items-center gap-3 min-w-0 flex-1'>
             <Button
@@ -136,7 +136,7 @@ export default function Profile() {
                 <li>
                   Endpoint:{' '}
                   <code className='text-zinc-500'>
-                    POST /api/auth/telegram/sync-mini-app
+                    POST /api/auth/telegram/miniapp/signin
                   </code>{' '}
                   with <code className='text-zinc-500'>initData</code>. If you
                   still see old Nest errors, redeploy the frontend.
@@ -167,15 +167,8 @@ export default function Profile() {
                 </p>
               </div>
               <p className='text-center text-sm font-medium text-zinc-400'>
-                Link your account to sync wallet and unlocks. Use the blue
-                Telegram button in each box below.
-              </p>
-              <p className='text-center text-[11px] leading-relaxed text-zinc-500'>
-                The <strong className='text-zinc-300'>“Login”</strong> /{' '}
-                <strong className='text-zinc-300'>“Register”</strong> headings
-                are labels only — tap the{' '}
-                <strong className='text-zinc-300'>Log in with Telegram</strong>{' '}
-                control inside the frame.
+                Link your account to sync wallet and unlocks. Tap the button
+                below, then confirm with Telegram&apos;s official sign-in.
               </p>
               {telegramDomainHint === 'localhost' ? (
                 <div
@@ -185,9 +178,18 @@ export default function Profile() {
                   <AlertTriangle className='h-5 w-5 shrink-0 text-amber-400' />
                   <div className='space-y-2 leading-relaxed'>
                     <p className='font-bold text-amber-200'>
-                      “Bot domain invalid” or widget not loading (browser)
+                      Local desktop · Telegram widget (browser)
                     </p>
                     <p>
+                      Run{' '}
+                      <code className='rounded bg-zinc-950/50 px-1 py-0.5 text-[11px]'>
+                        npm run dev
+                      </code>{' '}
+                      and open{' '}
+                      <code className='rounded bg-zinc-950/50 px-1 text-[11px]'>
+                        http://localhost:3000
+                      </code>
+                      . The Login Widget is built for a public HTTPS domain —
                       Telegram does not allow{' '}
                       <code className='rounded bg-zinc-950/50 px-1 py-0.5 text-[11px]'>
                         localhost
@@ -248,65 +250,62 @@ export default function Profile() {
                 </div>
               ) : null}
               {botName ? (
-                <div className='grid gap-6 sm:grid-cols-2'>
-                  <div className='flex min-h-[140px] flex-col gap-3 rounded-2xl border border-zinc-800/80 bg-zinc-950/40 p-4'>
-                    <h2 className='text-center text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500'>
-                      Login
-                    </h2>
-                    <TelegramLoginWidget
-                      botName={botName}
-                      authMode='login'
-                      className='min-h-[72px]'
-                      globalCallbackName='onTelegramAuthLogin'
-                      onAuth={async (u) => {
-                        setLoginError(null);
-                        setRegisterError(null);
-                        try {
-                          await loginWithTelegramBrowser(u);
-                        } catch (e) {
-                          setLoginError(
-                            e instanceof Error
-                              ? e.message
-                              : 'Telegram login failed',
-                          );
-                        }
+                <div className='flex flex-col items-center gap-4'>
+                  {!showTelegramWidget ? (
+                    <Button
+                      type='button'
+                      onClick={() => {
+                        setTelegramError(null);
+                        setShowTelegramWidget(true);
                       }}
-                    />
-                    {loginError ? (
-                      <p className='text-center text-xs text-red-400'>
-                        {loginError}
+                      className='h-14 w-full max-w-sm gap-2 rounded-2xl bg-[#0088cc] text-[15px] font-bold text-white shadow-lg shadow-[#0088cc]/25 hover:bg-[#0077b5]'
+                    >
+                      <Send className='h-5 w-5 shrink-0' aria-hidden />
+                      Log in with Telegram
+                    </Button>
+                  ) : (
+                    <div className='flex w-full max-w-md flex-col gap-3 rounded-2xl border border-zinc-800/80 bg-zinc-950/40 p-5'>
+                      <p className='text-center text-[11px] font-medium text-zinc-500'>
+                        Use{' '}
+                        <span className='text-zinc-300'>Log in with Telegram</span>{' '}
+                        below to finish.
                       </p>
-                    ) : null}
-                  </div>
-                  <div className='flex min-h-[140px] flex-col gap-3 rounded-2xl border border-zinc-800/80 bg-zinc-950/40 p-4'>
-                    <h2 className='text-center text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500'>
-                      Register
-                    </h2>
-                    <TelegramLoginWidget
-                      botName={botName}
-                      authMode='register'
-                      className='min-h-[72px]'
-                      globalCallbackName='onTelegramAuthRegister'
-                      onAuth={async (u) => {
-                        setRegisterError(null);
-                        setLoginError(null);
-                        try {
-                          await registerWithTelegramBrowser(u);
-                        } catch (e) {
-                          setRegisterError(
-                            e instanceof Error
-                              ? e.message
-                              : 'Telegram register failed',
-                          );
-                        }
-                      }}
-                    />
-                    {registerError ? (
-                      <p className='text-center text-xs text-red-400'>
-                        {registerError}
-                      </p>
-                    ) : null}
-                  </div>
+                      <TelegramLoginWidget
+                        botName={botName}
+                        authMode='login'
+                        className='min-h-[72px]'
+                        globalCallbackName='onTelegramAuthProfile'
+                        onAuth={async (u) => {
+                          setTelegramError(null);
+                          try {
+                            await loginWithTelegramBrowser(u);
+                          } catch (e) {
+                            setTelegramError(
+                              e instanceof Error
+                                ? e.message
+                                : 'Telegram sign-in failed',
+                            );
+                          }
+                        }}
+                      />
+                      {telegramError ? (
+                        <p className='text-center text-xs text-red-400'>
+                          {telegramError}
+                        </p>
+                      ) : null}
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        className='text-xs text-zinc-500 hover:text-zinc-300'
+                        onClick={() => {
+                          setShowTelegramWidget(false);
+                          setTelegramError(null);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <p className='text-center text-xs text-zinc-600'>

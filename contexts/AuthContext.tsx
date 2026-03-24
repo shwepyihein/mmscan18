@@ -178,10 +178,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [sessionError]);
 
-  const loginWithTelegramBrowser = useCallback(
+  const signInWithTelegramWidget = useCallback(
     async (fields: object) => {
       setError(null);
-      const res = await fetch("/api/auth/telegram/sign-in-widget", {
+      const res = await fetch("/api/auth/telegram/signin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -202,31 +202,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [refetch, refreshProfile],
   );
 
-  const registerWithTelegramBrowser = useCallback(
-    async (fields: object) => {
-      setError(null);
-      const res = await fetch("/api/auth/telegram/register-widget", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(toStringFields(fields)),
-      });
-      const body = (await res.json().catch(() => ({}))) as {
-        message?: string;
-      };
-      if (!res.ok) {
-        throw new Error(
-          typeof body?.message === "string"
-            ? body.message
-            : "Telegram register failed",
-        );
-      }
-      await refetch();
-      await refreshJwtForNest();
-      await refreshProfile();
-    },
-    [refetch, refreshProfile],
-  );
+  const loginWithTelegramBrowser = signInWithTelegramWidget;
+
+  const registerWithTelegramBrowser = signInWithTelegramWidget;
 
   const isLoading = status === "loading" || isPending || !tmaBootstrapped;
   const isAuthenticated = status === "authenticated";

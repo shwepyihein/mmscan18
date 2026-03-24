@@ -17,7 +17,7 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Authentication (Better Auth on Next.js)
 
 - **Sessions and Telegram login** run on this app via [Better Auth](https://www.better-auth.com/): App Router handler `app/api/auth/[...all]/route.ts`, config in `lib/auth.ts`, PostgreSQL (`DATABASE_URL`).
-- **Telegram**: server verifies Login Widget payloads and Mini App `initData` (`lib/telegram-plugin.ts`, `lib/telegram-verify.ts`) using `TELEGRAM_BOT_TOKEN`.
+- **Telegram**: [better-auth-telegram](https://github.com/vcode-sh/better-auth-telegram) verifies the Login Widget and Mini App `initData` using `TELEGRAM_BOT_TOKEN` and `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME`.
 - **JWT for Nest**: the JWT plugin exposes `GET /api/auth/token` (client: `authClient.token()`). The axios client (`lib/api-client.ts`) sends `Authorization: Bearer …` to your **Nest** base URL for `GET /auth/me` and other APIs.
 - **Nest** should validate those JWTs using JWKS at `{BETTER_AUTH_URL}/api/auth/jwks`. See [docs/NEST_JWT.md](docs/NEST_JWT.md).
 
@@ -25,10 +25,8 @@ Open [http://localhost:3000](http://localhost:3000).
 
 | Flow | Route |
 |------|--------|
-| Mini App `initData` | `POST /api/auth/telegram/sync-mini-app` |
-| Browser widget login | `POST /api/auth/telegram/sign-in-widget` |
-| Browser widget register | `POST /api/auth/telegram/register-widget` |
-| Check account exists | `POST /api/auth/telegram/user-exists` |
+| Mini App `initData` | `POST /api/auth/telegram/miniapp/signin` |
+| Browser Login Widget | `POST /api/auth/telegram/signin` (creates user if missing when `autoCreateUser` is enabled) |
 
 ## Production checklist
 

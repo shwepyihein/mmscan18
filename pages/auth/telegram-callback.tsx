@@ -1,19 +1,14 @@
 import { useAuth } from "@/components/AuthProvider";
-import type { TelegramAuthMode } from "@/components/TelegramLoginWidget";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 
 const QUERY_SKIP = new Set(["mode", "next"]);
 
-function parseMode(raw: unknown): TelegramAuthMode {
-  return raw === "register" ? "register" : "login";
-}
-
 /** Telegram Login Widget redirects here with `id`, `hash`, `auth_date`, etc. */
 export default function TelegramAuthCallbackPage() {
   const router = useRouter();
-  const { loginWithTelegramBrowser, registerWithTelegramBrowser } = useAuth();
+  const { loginWithTelegramBrowser } = useAuth();
   const [message, setMessage] = useState("Signing in with Telegram…");
   const [isError, setIsError] = useState(false);
   const startedRef = useRef(false);
@@ -22,8 +17,6 @@ export default function TelegramAuthCallbackPage() {
     if (!router.isReady || startedRef.current) return;
     const q = router.query;
     if (!q || Object.keys(q).length === 0) return;
-
-    const mode = parseMode(q.mode);
 
     const fields: Record<string, string> = {};
     for (const [k, v] of Object.entries(q)) {
@@ -39,12 +32,7 @@ export default function TelegramAuthCallbackPage() {
     }
 
     startedRef.current = true;
-    const run =
-      mode === "register"
-        ? registerWithTelegramBrowser(fields)
-        : loginWithTelegramBrowser(fields);
-
-    run
+    loginWithTelegramBrowser(fields)
       .then(() => {
         const next =
           typeof router.query.next === "string" && router.query.next.startsWith("/")
@@ -63,7 +51,6 @@ export default function TelegramAuthCallbackPage() {
     router.isReady,
     router.query,
     loginWithTelegramBrowser,
-    registerWithTelegramBrowser,
     router,
   ]);
 
@@ -72,9 +59,9 @@ export default function TelegramAuthCallbackPage() {
       <Head>
         <title>Telegram sign-in | hotManhwammhub</title>
       </Head>
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-zinc-950 p-6">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-zinc-950 p-6 md:p-10">
         <p
-          className={`text-center text-sm font-medium ${isError ? "text-red-400" : "text-zinc-300"}`}
+          className={`max-w-md text-center text-sm font-medium md:text-base ${isError ? "text-red-400" : "text-zinc-300"}`}
         >
           {message}
         </p>

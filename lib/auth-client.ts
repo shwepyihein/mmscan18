@@ -1,5 +1,6 @@
-import { createAuthClient } from "better-auth/react";
 import { jwtClient } from "better-auth/client/plugins";
+import { createAuthClient } from "better-auth/react";
+import { telegramClient } from "better-auth-telegram/client";
 
 function resolveBaseURL(): string {
   if (typeof window !== "undefined") {
@@ -14,5 +15,8 @@ function resolveBaseURL(): string {
 
 export const authClient = createAuthClient({
   baseURL: resolveBaseURL(),
-  plugins: [jwtClient()],
+  fetchOptions: {
+    credentials: "include",
+  },
+  plugins: [jwtClient(), telegramClient()],
 });

@@ -18,8 +18,8 @@ export function Navbar() {
   const { isAuthenticated, isLoading } = useAuth();
 
   return (
-    <div className="fixed bottom-8 left-0 right-0 z-50 flex justify-center px-6 pointer-events-none">
-      <nav className="flex items-center bg-zinc-900/90 backdrop-blur-2xl border border-zinc-800/50 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.5)] pointer-events-auto px-2 py-2 gap-1">
+    <div className="fixed bottom-6 left-0 right-0 z-50 flex justify-center px-4 md:bottom-8 md:px-6 pointer-events-none">
+      <nav className="flex max-w-full items-center bg-zinc-900/90 backdrop-blur-2xl border border-zinc-800/50 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.5)] pointer-events-auto px-2 py-2 gap-1 md:gap-1.5">
         {/* Navigation Items */}
         {navItems.map((item) => {
           const isActive = router.pathname === item.href;
