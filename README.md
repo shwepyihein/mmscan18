@@ -35,7 +35,8 @@ Open [http://localhost:3000](http://localhost:3000).
 
    - CORS / cookies: if the API is on another domain, configure `credentials` and `SameSite` so session cookies from login work in the browser.
    - Telegram auth is proxied from Next to your API:
-     - **Browser widget** → `POST /auth/telegram-login` (via `/api/auth/telegram-browser`)
+     - **Browser widget (login)** → `POST /auth/telegram-login` (via `/api/auth/telegram-browser`)
+     - **Browser widget (register)** → `POST /auth/telegram-register` (via `/api/auth/telegram-browser-register`)
      - **Mini App `initData`** → `POST /auth/telegram-register` (via `/api/auth/telegram-sync`)
      - **User exists** → `GET` or `POST /auth/telegram-user-exists` (via `/api/auth/telegram-user-exists`; optional `fetchTelegramUserExists` in `api/users`)
    - Override paths with `TELEGRAM_BROWSER_LOGIN_PATH`, `TELEGRAM_REGISTER_PATH`, `TELEGRAM_USER_EXISTS_PATH` if your API differs.

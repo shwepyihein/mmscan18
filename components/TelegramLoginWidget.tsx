@@ -11,6 +11,8 @@ export interface TelegramUser {
   hash: string;
 }
 
+export type TelegramAuthMode = "login" | "register";
+
 interface TelegramLoginWidgetProps {
   botName: string;
   /**
@@ -18,6 +20,10 @@ interface TelegramLoginWidgetProps {
    * Not used when redirect mode is active (production with `NEXT_PUBLIC_SITE_URL`).
    */
   onAuth?: (user: TelegramUser) => void | Promise<void>;
+  /** Must be unique if multiple widgets mount (e.g. `onTelegramAuthLogin` / `onTelegramAuthRegister`). */
+  globalCallbackName?: string;
+  /** Sent as `?mode=` on redirect callback URL. */
+  authMode?: TelegramAuthMode;
   buttonSize?: "large" | "medium" | "small";
   cornerRadius?: number;
   requestAccess?: "write" | "read";
@@ -26,6 +32,8 @@ interface TelegramLoginWidgetProps {
 export function TelegramLoginWidget({
   botName,
   onAuth,
+  globalCallbackName = "onTelegramAuth",
+  authMode = "login",
   buttonSize = "large",
   cornerRadius = 8,
   requestAccess = "write",
@@ -46,10 +54,10 @@ export function TelegramLoginWidget({
       return;
     }
 
+    const w = window as unknown as Record<string, unknown>;
+
     if (!useRedirect) {
-      (window as unknown as { onTelegramAuth?: (user: TelegramUser) => void }).onTelegramAuth = (
-        user: TelegramUser,
-      ) => {
+      w[globalCallbackName] = (user: TelegramUser) => {
         void onAuthRef.current?.(user);
       };
     }
@@ -65,25 +73,31 @@ export function TelegramLoginWidget({
     script.setAttribute("data-request-access", requestAccess);
 
     if (useRedirect && siteUrl) {
-      script.setAttribute(
-        "data-auth-url",
-        `${siteUrl}/auth/telegram-callback`,
-      );
+      const url = new URL(`${siteUrl}/auth/telegram-callback`);
+      url.searchParams.set("mode", authMode);
+      script.setAttribute("data-auth-url", url.toString());
     } else {
-      script.setAttribute("data-onauth", "onTelegramAuth(user)");
+      script.setAttribute("data-onauth", `${globalCallbackName}(user)`);
     }
 
     containerRef.current.appendChild(script);
 
     return () => {
       if (!useRedirect) {
-        delete (window as unknown as { onTelegramAuth?: unknown }).onTelegramAuth;
+        delete w[globalCallbackName];
       }
       if (containerRef.current) {
         containerRef.current.innerHTML = "";
       }
     };
-  }, [botName, buttonSize, cornerRadius, requestAccess]);
+  }, [
+    botName,
+    buttonSize,
+    cornerRadius,
+    requestAccess,
+    globalCallbackName,
+    authMode,
+  ]);
 
   return <div ref={containerRef} className="flex justify-center" />;
 }

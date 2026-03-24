@@ -1,6 +1,7 @@
 import {
   fetchCurrentProfile,
   loginWithTelegramWidget,
+  registerWithTelegramWidget,
   syncTelegramUser,
   clearClientAuthSession,
 } from "@/api/users";
@@ -24,6 +25,8 @@ type AuthContextValue = {
   error: string | null;
   /** Browser: Telegram Login Widget payload or `/auth/telegram-callback` query. */
   loginWithTelegramBrowser: (fields: object) => Promise<void>;
+  /** Browser: same widget payload, upstream `/auth/telegram-register`. */
+  registerWithTelegramBrowser: (fields: object) => Promise<void>;
   refreshProfile: () => Promise<void>;
   signOut: () => void;
   /** Convenience for UI */
@@ -103,15 +106,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [setProfile]);
 
+  const toStringFields = (fields: object): Record<string, string> => {
+    const stringFields: Record<string, string> = {};
+    for (const [k, v] of Object.entries(fields)) {
+      if (v === undefined || v === null) continue;
+      stringFields[k] = typeof v === "string" ? v : String(v);
+    }
+    return stringFields;
+  };
+
   const loginWithTelegramBrowser = useCallback(
     async (fields: object) => {
       setError(null);
-      const stringFields: Record<string, string> = {};
-      for (const [k, v] of Object.entries(fields)) {
-        if (v === undefined || v === null) continue;
-        stringFields[k] = typeof v === "string" ? v : String(v);
-      }
-      const profile = await loginWithTelegramWidget(stringFields);
+      const profile = await loginWithTelegramWidget(toStringFields(fields));
+      setProfile(profile);
+      setStatus("authenticated");
+    },
+    [setProfile],
+  );
+
+  const registerWithTelegramBrowser = useCallback(
+    async (fields: object) => {
+      setError(null);
+      const profile = await registerWithTelegramWidget(toStringFields(fields));
       setProfile(profile);
       setStatus("authenticated");
     },
@@ -127,6 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isTelegramMiniApp,
       error,
       loginWithTelegramBrowser,
+      registerWithTelegramBrowser,
       refreshProfile,
       signOut,
       isAuthenticated,
@@ -137,6 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isTelegramMiniApp,
       error,
       loginWithTelegramBrowser,
+      registerWithTelegramBrowser,
       refreshProfile,
       signOut,
       isAuthenticated,

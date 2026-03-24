@@ -76,7 +76,7 @@ export async function syncTelegramUser(initData: string): Promise<UserProfile> {
   return profile;
 }
 
-/** Browser: Telegram Login Widget payload (id, hash, auth_date, …). */
+/** Browser: Telegram Login Widget → `/auth/telegram-login`. */
 export async function loginWithTelegramWidget(
   widgetFields: Record<string, string>,
 ): Promise<UserProfile> {
@@ -90,6 +90,29 @@ export async function loginWithTelegramWidget(
   if (!res.ok) {
     throw new Error(
       typeof data?.error === 'string' ? data.error : 'Telegram login failed',
+    );
+  }
+  const profile = applyAuthPayload(data);
+  if (!profile) {
+    throw new Error('Invalid profile response');
+  }
+  return profile;
+}
+
+/** Browser: Telegram Login Widget → `/auth/telegram-register`. */
+export async function registerWithTelegramWidget(
+  widgetFields: Record<string, string>,
+): Promise<UserProfile> {
+  const res = await fetch('/api/auth/telegram-browser-register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(widgetFields),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      typeof data?.error === 'string' ? data.error : 'Telegram register failed',
     );
   }
   const profile = applyAuthPayload(data);

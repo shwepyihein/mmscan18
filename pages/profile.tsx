@@ -1,5 +1,5 @@
 import Head from "next/head";
-import { User, Wallet, History, LogOut, Star, Settings, ChevronLeft } from "lucide-react";
+import { User, Wallet, History, LogOut, Star, Settings, ChevronLeft, LogIn, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/components/AuthProvider";
@@ -15,11 +15,13 @@ export default function Profile() {
     status,
     isTelegramMiniApp,
     loginWithTelegramBrowser,
+    registerWithTelegramBrowser,
     signOut,
     isLoading,
     error: authError,
   } = useAuth();
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [registerError, setRegisterError] = useState<string | null>(null);
 
   const botName = (process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "").trim();
 
@@ -66,34 +68,74 @@ export default function Profile() {
 
         {!isLoading && status === "unauthenticated" && !isTelegramMiniApp && (
           <Card className="border-zinc-800 bg-zinc-900/60 rounded-3xl">
-            <CardContent className="flex flex-col items-center gap-4 p-6">
+            <CardContent className="flex flex-col gap-6 p-6">
               <p className="text-center text-sm font-medium text-zinc-400">
-                Log in with Telegram to sync your wallet and unlocks in the browser.
+                Use Telegram in the browser to sync your wallet and unlocks.
               </p>
               {botName ? (
-                <TelegramLoginWidget
-                  botName={botName}
-                  onAuth={async (u) => {
-                    setLoginError(null);
-                    try {
-                      await loginWithTelegramBrowser(u);
-                    } catch (e) {
-                      setLoginError(
-                        e instanceof Error ? e.message : "Telegram login failed",
-                      );
-                    }
-                  }}
-                />
+                <div className="grid gap-6 sm:grid-cols-2">
+                  <div className="flex flex-col gap-3 rounded-2xl border border-zinc-800/80 bg-zinc-950/40 p-4">
+                    <div className="flex items-center justify-center gap-2 text-zinc-200">
+                      <LogIn className="h-4 w-4 text-violet-400" />
+                      <span className="text-xs font-black uppercase tracking-widest">
+                        Login
+                      </span>
+                    </div>
+                    <TelegramLoginWidget
+                      botName={botName}
+                      authMode="login"
+                      globalCallbackName="onTelegramAuthLogin"
+                      onAuth={async (u) => {
+                        setLoginError(null);
+                        setRegisterError(null);
+                        try {
+                          await loginWithTelegramBrowser(u);
+                        } catch (e) {
+                          setLoginError(
+                            e instanceof Error ? e.message : "Telegram login failed",
+                          );
+                        }
+                      }}
+                    />
+                    {loginError ? (
+                      <p className="text-center text-xs text-red-400">{loginError}</p>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-col gap-3 rounded-2xl border border-zinc-800/80 bg-zinc-950/40 p-4">
+                    <div className="flex items-center justify-center gap-2 text-zinc-200">
+                      <UserPlus className="h-4 w-4 text-emerald-400" />
+                      <span className="text-xs font-black uppercase tracking-widest">
+                        Register
+                      </span>
+                    </div>
+                    <TelegramLoginWidget
+                      botName={botName}
+                      authMode="register"
+                      globalCallbackName="onTelegramAuthRegister"
+                      onAuth={async (u) => {
+                        setRegisterError(null);
+                        setLoginError(null);
+                        try {
+                          await registerWithTelegramBrowser(u);
+                        } catch (e) {
+                          setRegisterError(
+                            e instanceof Error ? e.message : "Telegram register failed",
+                          );
+                        }
+                      }}
+                    />
+                    {registerError ? (
+                      <p className="text-center text-xs text-red-400">{registerError}</p>
+                    ) : null}
+                  </div>
+                </div>
               ) : (
                 <p className="text-center text-xs text-zinc-600">
                   Set{" "}
                   <code className="text-zinc-500">NEXT_PUBLIC_TELEGRAM_BOT_USERNAME</code>{" "}
-                  for the login widget.
+                  for the Telegram buttons.
                 </p>
               )}
-              {loginError ? (
-                <p className="text-center text-sm text-red-400">{loginError}</p>
-              ) : null}
             </CardContent>
           </Card>
         )}
