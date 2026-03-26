@@ -87,8 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const user = session?.user;
 
-  console.log(user, 'data');
-  console.log(session, isPending, 'session');
+  console.log(session, 'session');
 
   /** Better Auth finished loading session (or "no session") and Mini App probe done. */
   const sessionResolved = tmaBootstrapped && !isPending;
@@ -109,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(p);
     } catch {
       const { data } = await authClient.getSession();
+      console.log(data, 'sessiondata');
       if (data?.user) {
         setProfile(fallbackProfileFromSessionUser(data.user));
       }
@@ -165,6 +165,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
         await signInTelegramMiniApp(initData);
+        /**
+         * Telegram WebView sometimes applies `Set-Cookie` slightly after the
+         * sign-in fetch resolves. Retry `get-session` so `useSession` catches up.
+         */
+        for (let attempt = 0; attempt < 6; attempt++) {
+          const { data } = await authClient.getSession();
+          console.log(data, 'data');
+          if (data?.user) break;
+          await new Promise((r) => setTimeout(r, 100 * (attempt + 1)));
+        }
         await refetch();
         await refreshProfile();
       } catch (e) {

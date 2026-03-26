@@ -1,8 +1,9 @@
 import { betterAuth } from 'better-auth';
 import { telegram } from 'better-auth-telegram';
-import { nextCookies } from 'better-auth/next-js';
 import { jwt } from 'better-auth/plugins';
 import { Pool } from 'pg';
+
+import { nextCookiesFixed } from '@/lib/better-auth-next-cookies';
 
 const globalForPool = globalThis as unknown as {
   betterAuthPgPool: Pool | undefined;
@@ -74,6 +75,10 @@ export const auth = betterAuth({
   baseURL: getBaseURL(),
   trustedOrigins: trustedOriginsList(),
   emailAndPassword: { enabled: false },
+  /** Vercel / proxies: use x-forwarded-proto + x-forwarded-host where relevant. */
+  advanced: {
+    trustedProxyHeaders: true,
+  },
   session: {
     cookieCache: {
       enabled: false,
@@ -111,6 +116,6 @@ export const auth = betterAuth({
         }),
       },
     }),
-    nextCookies(),
+    nextCookiesFixed(),
   ],
 });
