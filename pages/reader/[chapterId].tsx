@@ -2,7 +2,7 @@ import Head from "next/head";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Menu, Settings, Lock, Coins, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Menu, Settings, Lock, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   extractChapterManhwaTitle,
@@ -16,7 +16,7 @@ import {
 import { useUserStore } from "@/store/useUserStore";
 import { resolveEpisodeCoinPrice } from "@/lib/chapterPricing";
 import { UnlockChapterDialog } from "@/components/UnlockChapterDialog";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 interface LoadedChapter {
@@ -82,6 +82,39 @@ export default function Reader() {
       return null;
     }
   }, [chaptersList, isChapterUnlocked]);
+
+  const handleLoadNext = useCallback(async () => {
+    if (!manhwa || !manhwaId || isLoadingNext) return;
+
+    const lastCh = loadedChapters[loadedChapters.length - 1];
+    if (!lastCh) return;
+
+    const nextChNo = lastCh.chapterNo + 1;
+    if (nextChNo > manhwa.chaptersCount) return;
+
+    const nextSummary = chaptersList.find((c) => c.chapterNo === nextChNo);
+    const nextPrice = resolveEpisodeCoinPrice(nextChNo, nextSummary?.coinPrice);
+    const nextStoreId = getChapterStoreId(manhwaId as string, nextChNo, nextSummary?.id);
+
+    if (nextPrice > 0 && !isChapterUnlocked(nextStoreId)) {
+      return;
+    }
+
+    setIsLoadingNext(true);
+    const nextCh = await loadChapterData(manhwaId as string, nextChNo);
+    if (nextCh) {
+      setLoadedChapters((prev) => [...prev, nextCh]);
+    }
+    setIsLoadingNext(false);
+  }, [
+    manhwa,
+    manhwaId,
+    isLoadingNext,
+    loadedChapters,
+    chaptersList,
+    isChapterUnlocked,
+    loadChapterData,
+  ]);
 
   // Initial Load
   useEffect(() => {
@@ -153,33 +186,6 @@ export default function Reader() {
 
     return () => observerRef.current?.disconnect();
   }, [loadedChapters, manhwaId, handleLoadNext]);
-
-  const handleLoadNext = useCallback(async () => {
-    if (!manhwa || !manhwaId || isLoadingNext) return;
-    
-    const lastCh = loadedChapters[loadedChapters.length - 1];
-    if (!lastCh) return;
-
-    const nextChNo = lastCh.chapterNo + 1;
-    if (nextChNo > manhwa.chaptersCount) return;
-
-    // Check if next chapter is in our list and if it's locked
-    const nextSummary = chaptersList.find(c => c.chapterNo === nextChNo);
-    const nextPrice = resolveEpisodeCoinPrice(nextChNo, nextSummary?.coinPrice);
-    const nextStoreId = getChapterStoreId(manhwaId as string, nextChNo, nextSummary?.id);
-    
-    if (nextPrice > 0 && !isChapterUnlocked(nextStoreId)) {
-      // Don't auto-load locked chapters, UI will show "Next Chapter (Locked)"
-      return;
-    }
-
-    setIsLoadingNext(true);
-    const nextCh = await loadChapterData(manhwaId as string, nextChNo);
-    if (nextCh) {
-      setLoadedChapters(prev => [...prev, nextCh]);
-    }
-    setIsLoadingNext(false);
-  }, [manhwa, manhwaId, isLoadingNext, loadedChapters, chaptersList, isChapterUnlocked, loadChapterData]);
 
   const handleUnlockClick = (ch: LoadedChapter | { chapterNo: number, price: number, storeId: string }) => {
     if (!manhwa) return;
