@@ -1,4 +1,5 @@
 import { telegramClient } from 'better-auth-telegram/client';
+import { parseJSON } from 'better-auth/client';
 import { jwtClient } from 'better-auth/client/plugins';
 import { createAuthClient } from 'better-auth/react';
 
@@ -29,30 +30,20 @@ function resolveBaseURL(): string {
 }
 
 /**
- * Better Auth's default JSON parser returns `null` for empty bodies; the client
- * then does `(unwrap(res)).user` and throws "null is not an object" in Mini
- * App / Telegram WebView when `/get-session` or `/token` returns empty or `null`.
+ * Match Better Auth's default client parsing so JSON `null` (e.g. logged-out
+ * `GET /get-session`) stays null. The old parser coerced null → `{}`, which
+ * broke session detection and masked real no-cookie responses.
  */
-function safeAuthJsonParser(text: string): Record<string, unknown> {
-  if (text == null || !String(text).trim()) {
-    return {};
-  }
-  try {
-    const v = JSON.parse(String(text)) as unknown;
-    if (v === null || typeof v !== 'object' || Array.isArray(v)) {
-      return {};
-    }
-    return v as Record<string, unknown>;
-  } catch {
-    return {};
-  }
+function authJsonParser(text: string) {
+  if (!text) return null;
+  return parseJSON(text, { strict: false });
 }
 
 export const authClient = createAuthClient({
   baseURL: resolveBaseURL(),
   fetchOptions: {
     credentials: 'include',
-    jsonParser: safeAuthJsonParser,
+    jsonParser: authJsonParser,
   },
   plugins: [jwtClient(), telegramClient()],
 });
@@ -345,12 +336,18 @@ export async function signInTelegramMiniApp(initData: string): Promise<void> {
   const result = await client.signInWithMiniApp(raw);
   if (result.error) {
     const { message, status, statusText } = result.error;
-    const detail = [message, statusText].filter(Boolean).join(' — ');
+    const failDetail = [message, statusText].filter(Boolean).join(' — ');
     throw new Error(
-      detail
-        ? `${detail}${status ? ` (HTTP ${status})` : ''}`
+      failDetail
+        ? `${failDetail}${status ? ` (HTTP ${status})` : ''}`
         : 'Telegram Mini App sign-in failed',
     );
   }
+
+  const withStore = authClient as unknown as {
+    $store?: { notify: (signal: string) => void };
+  };
+  withStore.$store?.notify('$sessionSignal');
+
   clearTelegramInitDataReloadFlag();
 }
