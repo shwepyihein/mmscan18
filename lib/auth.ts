@@ -59,7 +59,7 @@ function trustedOriginsList(): string[] {
     base,
     'http://localhost:3000',
     'http://127.0.0.1:3000',
-    'https://18.manhwammhub.com/',
+    'https://18.manhwammhub.com',
     ...(extra ?? []),
   ]);
   const site = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, '');
@@ -75,6 +75,16 @@ export const auth = betterAuth({
   baseURL: getBaseURL(),
   trustedOrigins: trustedOriginsList(),
   emailAndPassword: { enabled: false },
+  /**
+   * Cookie cache is optional; a bad `session_data` cookie makes `/get-session`
+   * return null before the DB is consulted. Prefer DB-backed sessions here.
+   * @see https://better-auth.com/docs/concepts/session-management
+   */
+  session: {
+    cookieCache: {
+      enabled: false,
+    },
+  },
   plugins: [
     jwt({
       jwt: {
