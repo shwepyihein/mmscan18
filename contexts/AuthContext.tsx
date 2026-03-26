@@ -121,12 +121,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logoutStore();
   }, [logoutStore]);
 
-  /** Drop Nest JWT when there is no Better Auth user (stale tab / expired cookie). */
-  useEffect(() => {
-    if (!sessionResolved || user) return;
-    clearClientAuthSession();
-  }, [sessionResolved, user]);
-
   /**
    * Mini App: better-auth-telegram `signInWithMiniApp` using `Telegram.WebApp.initData`
    * (no @telegram-apps/sdk — detection via `window.Telegram.WebApp`).
