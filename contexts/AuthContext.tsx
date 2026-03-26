@@ -1,18 +1,21 @@
 import {
-  fetchCurrentProfile,
   clearClientAuthSession,
   ensureNestTelegramSession,
-} from "@/api/users";
+  fetchCurrentProfile,
+} from '@/api/users';
+import { TelegramLoginWidget } from '@/components/TelegramLoginWidget';
+import { getStoredAuthToken, setStoredAuthToken } from '@/lib/api-client';
 import {
   authClient,
+  signInWithTelegramBrowser as exchangeTelegramWidgetForSession,
   reloadOnceForTelegramInitData,
   signInTelegramMiniApp,
-  signInWithTelegramBrowser as exchangeTelegramWidgetForSession,
   waitForTelegramInitData,
   waitForTelegramWebApp,
-} from "@/lib/auth-client";
-import { setStoredAuthToken, getStoredAuthToken } from "@/lib/api-client";
-import { useUserStore } from "@/store/useUserStore";
+} from '@/lib/auth-client';
+import { normalizeTelegramBotUsername } from '@/lib/telegram-bot-username';
+import { useUserStore } from '@/store/useUserStore';
+import { AlertCircle, LogIn, ShieldCheck } from 'lucide-react';
 import {
   createContext,
   useCallback,
@@ -21,12 +24,9 @@ import {
   useMemo,
   useState,
   type ReactNode,
-} from "react";
-import { Loader2, LogIn, ShieldCheck, AlertCircle } from "lucide-react";
-import { TelegramLoginWidget } from "@/components/TelegramLoginWidget";
-import { normalizeTelegramBotUsername } from "@/lib/telegram-bot-username";
+} from 'react';
 
-export type AuthStatus = "loading" | "authenticated" | "unauthenticated";
+export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
 type AuthContextValue = {
   status: AuthStatus;
@@ -46,7 +46,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 async function refreshJwtForNest(): Promise<void> {
   // If we already have a token from NestJS, do not overwrite it with Better Auth's local JWT
   if (getStoredAuthToken()) return;
-  
+
   try {
     const { data, error } = await authClient.token();
     if (error || !data?.token) {
@@ -73,9 +73,12 @@ function fallbackProfileFromSessionUser(user: {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { data: session, isPending, error: sessionError, refetch } =
-    authClient.useSession();
-  const [status, setStatus] = useState<AuthStatus>("loading");
+  const {
+    data: session,
+    isPending,
+    error: sessionError,
+    refetch,
+  } = authClient.useSession();
   const [isTelegramMiniApp, setIsTelegramMiniApp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tmaBootstrapped, setTmaBootstrapped] = useState(false);
@@ -84,40 +87,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const user = session?.user;
 
+  /** Better Auth finished loading session (or "no session") and Mini App probe done. */
+  const sessionResolved = tmaBootstrapped && !isPending;
+
+  const status: AuthStatus = !sessionResolved
+    ? 'loading'
+    : user
+      ? 'authenticated'
+      : 'unauthenticated';
+
+  const isLoading = !sessionResolved;
+  const isAuthenticated = Boolean(user) && sessionResolved;
+
   const refreshProfile = useCallback(async () => {
     await refreshJwtForNest();
     try {
       const p = await fetchCurrentProfile();
       setProfile(p);
     } catch {
-      const r = await fetch("/api/auth/get-session", { credentials: "include" });
+      const r = await fetch('/api/auth/get-session', {
+        credentials: 'include',
+      });
       const j = (await r.json()) as {
         user?: { id: string; name?: string | null; telegramId?: string | null };
       };
       if (j?.user) setProfile(fallbackProfileFromSessionUser(j.user));
     }
-    setStatus("authenticated");
   }, [setProfile]);
 
   const signOut = useCallback(async () => {
     await authClient.signOut();
     clearClientAuthSession();
     logoutStore();
-    setStatus("unauthenticated");
   }, [logoutStore]);
+
+  /** Drop Nest JWT when there is no Better Auth user (stale tab / expired cookie). */
+  useEffect(() => {
+    if (!sessionResolved || user) return;
+    clearClientAuthSession();
+  }, [sessionResolved, user]);
 
   /**
    * Mini App: better-auth-telegram `signInWithMiniApp` using `Telegram.WebApp.initData`
    * (no @telegram-apps/sdk — detection via `window.Telegram.WebApp`).
    */
+
+  console.log(tmaBootstrapped, 'tmaBootstrap');
+  console.log(isTelegramMiniApp, 'isTelegramMiniApp');
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (typeof window === "undefined") {
+      if (typeof window === 'undefined') {
         setTmaBootstrapped(true);
         return;
       }
       const inMiniApp = await waitForTelegramWebApp();
+
       if (cancelled) return;
       setIsTelegramMiniApp(inMiniApp);
       if (!inMiniApp) {
@@ -137,7 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const nest = await ensureNestTelegramSession(initData);
         if (!nest.ok) {
           if (!cancelled) {
-            setError("Could not sync with the server.");
+            setError('Could not sync with the server.');
           }
           return;
         }
@@ -146,7 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await refreshProfile();
       } catch (e) {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Telegram sync failed");
+          setError(e instanceof Error ? e.message : 'Telegram sync failed');
         }
       } finally {
         if (!cancelled) setTmaBootstrapped(true);
@@ -157,35 +182,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [refetch, refreshProfile]);
 
-  /** Derive status + profile from Better Auth session + Nest `/auth/me`. */
+  /** Load Nest profile when Better Auth session is present. */
   useEffect(() => {
-    if (!tmaBootstrapped || isPending) {
-      setStatus("loading");
-      return;
-    }
-
-    if (!user) {
-      setStatus("unauthenticated");
-      return;
-    }
+    if (!sessionResolved || !user) return;
 
     let cancelled = false;
     (async () => {
       await refreshJwtForNest();
       try {
         const p = await fetchCurrentProfile();
-        if (!cancelled) {
-          setProfile(p);
-          setStatus("authenticated");
-        }
+        if (!cancelled) setProfile(p);
       } catch {
-        if (!cancelled) {
-          const r = await fetch("/api/auth/get-session", { credentials: "include" });
-          const j = (await r.json()) as {
-            user?: { id: string; name?: string | null; telegramId?: string | null };
+        if (cancelled) return;
+        const r = await fetch('/api/auth/get-session', {
+          credentials: 'include',
+        });
+        const j = (await r.json()) as {
+          user?: {
+            id: string;
+            name?: string | null;
+            telegramId?: string | null;
           };
-          if (j?.user) setProfile(fallbackProfileFromSessionUser(j.user));
-          setStatus("authenticated");
+        };
+        if (j?.user) {
+          setProfile(fallbackProfileFromSessionUser(j.user));
+        } else {
+          setProfile(fallbackProfileFromSessionUser(user));
         }
       }
     })();
@@ -193,11 +215,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [isPending, tmaBootstrapped, user, setProfile]);
+  }, [sessionResolved, user, setProfile]);
 
   useEffect(() => {
     if (sessionError) {
-      setError(sessionError.message ?? "Session error");
+      setError(sessionError.message ?? 'Session error');
     }
   }, [sessionError]);
 
@@ -206,7 +228,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(null);
       const nest = await ensureNestTelegramSession(fields);
       if (!nest.ok) {
-        setError("Could not sync with the server.");
+        setError('Could not sync with the server.');
         return;
       }
       await exchangeTelegramWidgetForSession(fields);
@@ -215,9 +237,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [refetch, refreshProfile],
   );
-
-  const isLoading = status === "loading" || isPending || !tmaBootstrapped;
-  const isAuthenticated = status === "authenticated";
 
   const value = useMemo(
     () => ({
@@ -242,22 +261,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  const botName = normalizeTelegramBotUsername(process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "");
+  const botName = normalizeTelegramBotUsername(
+    process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? '',
+  );
+  console.log(botName, 'botName');
 
-  // --- Auth Gate UI ---
   if (isLoading) {
     return (
       <AuthContext.Provider value={value}>
-        <div className="fixed inset-0 z-[9999] bg-zinc-950 flex flex-col items-center justify-center p-6 text-center gap-6">
-          <div className="relative">
-            <div className="w-16 h-16 rounded-full border-4 border-zinc-900 border-t-violet-500 animate-spin" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <ShieldCheck className="w-6 h-6 text-zinc-800" />
+        <div className='fixed inset-0 z-[9999] bg-zinc-950 flex flex-col items-center justify-center p-6 text-center gap-6'>
+          <div className='relative'>
+            <div className='w-16 h-16 rounded-full border-4 border-zinc-900 border-t-violet-500 animate-spin' />
+            <div className='absolute inset-0 flex items-center justify-center'>
+              <ShieldCheck className='w-6 h-6 text-zinc-800' />
             </div>
           </div>
-          <div className="flex flex-col gap-2">
-            <h2 className="text-xl font-black text-zinc-50 uppercase tracking-tighter">Initializing</h2>
-            <p className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.2em]">Synchronizing Secure Session</p>
+          <div className='flex flex-col gap-2'>
+            <h2 className='text-xl font-black text-zinc-50 uppercase tracking-tighter'>
+              Initializing
+            </h2>
+            <p className='text-[10px] font-black text-zinc-600 uppercase tracking-[0.2em]'>
+              Synchronizing Secure Session
+            </p>
           </div>
         </div>
       </AuthContext.Provider>
@@ -267,38 +292,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   if (!isAuthenticated) {
     return (
       <AuthContext.Provider value={value}>
-        <div className="fixed inset-0 z-[9999] bg-zinc-950 flex flex-col items-center justify-center p-8 text-center gap-10">
-          <div className="flex flex-col items-center gap-6">
-            <div className="w-24 h-24 rounded-3xl bg-violet-600/10 border border-violet-500/20 flex items-center justify-center text-violet-500 shadow-2xl shadow-violet-900/10">
+        <div className='fixed inset-0 z-[9999] bg-zinc-950 flex flex-col items-center justify-center p-8 text-center gap-10'>
+          <div className='flex flex-col items-center gap-6'>
+            <div className='w-24 h-24 rounded-3xl bg-violet-600/10 border border-violet-500/20 flex items-center justify-center text-violet-500 shadow-2xl shadow-violet-900/10'>
               <LogIn size={48} />
             </div>
-            <div className="flex flex-col gap-2">
-              <h1 className="text-3xl font-black text-zinc-50 uppercase tracking-tighter">Welcome</h1>
-              <p className="text-sm text-zinc-500 font-medium max-w-[240px] leading-relaxed">
+            <div className='flex flex-col gap-2'>
+              <h1 className='text-3xl font-black text-zinc-50 uppercase tracking-tighter'>
+                Welcome
+              </h1>
+              <p className='text-sm text-zinc-500 font-medium max-w-[240px] leading-relaxed'>
                 Sign in with Telegram to access your premium manhwa library.
               </p>
             </div>
           </div>
 
-          <div className="w-full max-w-xs flex flex-col gap-4">
+          <div className='w-full max-w-xs flex flex-col gap-4'>
             {isTelegramMiniApp ? (
-              <div className="p-4 rounded-2xl bg-red-500/5 border border-red-500/10 flex items-start gap-3 text-left">
-                <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-                <div className="flex flex-col gap-1">
-                  <p className="text-xs font-black text-red-500 uppercase">Sync Failed</p>
-                  <p className="text-[10px] text-zinc-500 font-bold leading-tight uppercase tracking-wider">
+              <div className='p-4 rounded-2xl bg-red-500/5 border border-red-500/10 flex items-start gap-3 text-left'>
+                <AlertCircle className='w-5 h-5 text-red-500 shrink-0 mt-0.5' />
+                <div className='flex flex-col gap-1'>
+                  <p className='text-xs font-black text-red-500 uppercase'>
+                    Sync Failed
+                  </p>
+                  <p className='text-[10px] text-zinc-500 font-bold leading-tight uppercase tracking-wider'>
                     Please restart the mini-app from your Telegram bot.
                   </p>
                 </div>
               </div>
             ) : (
               <>
-                <TelegramLoginWidget 
+                <TelegramLoginWidget
                   botName={botName}
-                  buttonSize="large"
+                  buttonSize='large'
                   onAuth={signInWithTelegramBrowser}
                 />
-                <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest mt-2">
+                <p className='text-[10px] text-zinc-600 font-bold uppercase tracking-widest mt-2'>
                   Official Secure Login via Telegram
                 </p>
               </>
@@ -306,7 +335,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           </div>
 
           {error && (
-            <p className="text-xs text-red-400/80 font-medium bg-red-500/5 px-4 py-2 rounded-full border border-red-500/10">
+            <p className='text-xs text-red-400/80 font-medium bg-red-500/5 px-4 py-2 rounded-full border border-red-500/10'>
               {error}
             </p>
           )}
@@ -315,15 +344,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  return (
-    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) {
-    throw new Error("useAuth must be used within AuthProvider");
+    throw new Error('useAuth must be used within AuthProvider');
   }
   return ctx;
 }

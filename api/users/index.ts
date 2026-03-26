@@ -1,7 +1,8 @@
 import axios from 'axios';
 import {
   apiClient,
-  getStoredRefreshToken,
+  applyNestAuthResponseDto,
+  refreshBackendSession,
   setStoredAuthToken,
   setStoredRefreshToken,
 } from '@/lib/api-client';
@@ -16,13 +17,6 @@ function pickToken(payload: unknown): string | null {
   return typeof t === 'string' && t.length > 0 ? t : null;
 }
 
-function pickRefreshToken(payload: unknown): string | null {
-  if (!payload || typeof payload !== 'object') return null;
-  const p = payload as Record<string, unknown>;
-  const t = p.refreshToken ?? p.refresh_token;
-  return typeof t === 'string' && t.length > 0 ? t : null;
-}
-
 function unwrapPayload(payload: unknown): Record<string, unknown> | null {
   const raw =
     payload && typeof payload === 'object'
@@ -34,21 +28,6 @@ function unwrapPayload(payload: unknown): Record<string, unknown> | null {
     return inner as Record<string, unknown>;
   }
   return raw;
-}
-
-/** Persist access + refresh from Nest `AuthResponseDto`. */
-function applyAuthResponseDto(data: unknown): void {
-  const inner = unwrapPayload(data);
-  const root = inner ?? (data && typeof data === 'object' ? data : null);
-  if (!root || typeof root !== 'object') return;
-  const token =
-    pickToken(root) ??
-    (inner && typeof inner === 'object' ? pickToken(inner) : null);
-  const refresh =
-    pickRefreshToken(root) ??
-    (inner && typeof inner === 'object' ? pickRefreshToken(inner) : null);
-  if (token) setStoredAuthToken(token);
-  if (refresh) setStoredRefreshToken(refresh);
 }
 
 function readStr(o: Record<string, unknown>, ...keys: string[]): string | undefined {
@@ -209,7 +188,7 @@ export async function syncNestTelegramLogin(
 ): Promise<NestTelegramSyncResult> {
   try {
     const { data } = await apiClient.post<unknown>('/auth/telegram-login', body);
-    applyAuthResponseDto(data);
+    applyNestAuthResponseDto(data);
     const token = pickToken(unwrapPayload(data) ?? data);
     if (token) {
       return { ok: true, token };
@@ -237,7 +216,7 @@ export async function registerNestTelegram(
       '/auth/telegram-register',
       body,
     );
-    applyAuthResponseDto(data);
+    applyNestAuthResponseDto(data);
     const token = pickToken(unwrapPayload(data) ?? data);
     if (token) {
       return { ok: true, token };
@@ -296,7 +275,7 @@ export async function loginWithEmailPassword(
       email,
       password,
     });
-    applyAuthResponseDto(data);
+    applyNestAuthResponseDto(data);
     const token = pickToken(unwrapPayload(data) ?? data);
     if (token) return { ok: true, token };
     return { ok: false, reason: 'sync_failed' };
@@ -306,19 +285,9 @@ export async function loginWithEmailPassword(
   }
 }
 
-/** `POST /auth/refresh` — uses stored refresh token. */
+/** `POST /auth/refresh` — uses stored refresh token (also used by apiClient 401 retry). */
 export async function refreshNestAuth(): Promise<boolean> {
-  const rt = getStoredRefreshToken();
-  if (!rt) return false;
-  try {
-    const { data } = await apiClient.post<unknown>('/auth/refresh', {
-      refreshToken: rt,
-    });
-    applyAuthResponseDto(data);
-    return Boolean(pickToken(unwrapPayload(data) ?? data));
-  } catch {
-    return false;
-  }
+  return refreshBackendSession();
 }
 
 /** `GET /auth/me` (Bearer accessToken). */
