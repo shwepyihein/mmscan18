@@ -307,25 +307,50 @@ export async function waitForTelegramInitData(options?: {
   });
 }
 
-type MiniAppSignInResult = {
-  data?: unknown;
-  error?: { message?: string } | null;
+type MiniAppSignInResponse =
+  | { data: unknown; error: null }
+  | {
+      data: null;
+      error: { message?: string; status: number; statusText: string };
+    };
+
+type AuthClientWithTelegramMiniApp = {
+  signInWithMiniApp: (
+    initData: string,
+    fetchOptions?: Record<string, unknown>,
+  ) => Promise<MiniAppSignInResponse>;
 };
 
 /**
- * Mini App sign-in via better-auth-telegram (`autoSignInFromMiniApp` → `POST /telegram/miniapp/signin`).
- * Reads `Telegram.WebApp.initData` internally — no @telegram-apps/sdk required for auth.
+ * Mini App sign-in → `POST /api/auth/telegram/miniapp/signin` with `{ initData }`.
+ * Pass the same non-empty string you got from `waitForTelegramInitData()` — do not rely on
+ * `autoSignInFromMiniApp()` alone (empty-string `initData` is falsy and `WebApp` can lag behind).
  */
-export async function signInTelegramMiniApp(): Promise<void> {
+export async function signInTelegramMiniApp(initData: string): Promise<void> {
   if (typeof window === 'undefined') {
     throw new Error('Mini App sign-in requires a browser.');
   }
-  const c = authClient as unknown as {
-    autoSignInFromMiniApp: () => Promise<MiniAppSignInResult>;
-  };
-  const result = await c.autoSignInFromMiniApp();
-  if (result?.error) {
-    throw new Error(result.error.message ?? 'Telegram Mini App sign-in failed');
+  const raw = initData?.trim() ?? '';
+  if (!raw) {
+    throw new Error('Telegram Mini App initData is empty.');
+  }
+
+  const client = authClient as unknown as AuthClientWithTelegramMiniApp;
+  if (typeof client.signInWithMiniApp !== 'function') {
+    throw new Error(
+      'better-auth-telegram client is missing signInWithMiniApp (check telegramClient() plugin).',
+    );
+  }
+
+  const result = await client.signInWithMiniApp(raw);
+  if (result.error) {
+    const { message, status, statusText } = result.error;
+    const detail = [message, statusText].filter(Boolean).join(' — ');
+    throw new Error(
+      detail
+        ? `${detail}${status ? ` (HTTP ${status})` : ''}`
+        : 'Telegram Mini App sign-in failed',
+    );
   }
   clearTelegramInitDataReloadFlag();
 }

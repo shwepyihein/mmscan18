@@ -132,8 +132,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * (no @telegram-apps/sdk — detection via `window.Telegram.WebApp`).
    */
 
-  console.log(tmaBootstrapped, 'tmaBootstrap');
-  console.log(isTelegramMiniApp, 'isTelegramMiniApp');
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -166,7 +164,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           return;
         }
-        await signInTelegramMiniApp();
+        await signInTelegramMiniApp(initData);
         await refetch();
         await refreshProfile();
       } catch (e) {
@@ -264,7 +262,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const botName = normalizeTelegramBotUsername(
     process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? '',
   );
-  console.log(botName, 'botName');
 
   if (isLoading) {
     return (
