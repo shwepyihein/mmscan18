@@ -87,6 +87,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const user = session?.user;
 
+  console.log(user, 'data');
+  console.log(session, isPending, 'session');
+
   /** Better Auth finished loading session (or "no session") and Mini App probe done. */
   const sessionResolved = tmaBootstrapped && !isPending;
 
@@ -105,13 +108,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const p = await fetchCurrentProfile();
       setProfile(p);
     } catch {
-      const r = await fetch('/api/auth/get-session', {
-        credentials: 'include',
-      });
-      const j = (await r.json()) as {
-        user?: { id: string; name?: string | null; telegramId?: string | null };
-      };
-      if (j?.user) setProfile(fallbackProfileFromSessionUser(j.user));
+      const { data } = await authClient.getSession();
+      if (data?.user) {
+        setProfile(fallbackProfileFromSessionUser(data.user));
+      }
     }
   }, [setProfile]);
 
@@ -192,18 +192,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!cancelled) setProfile(p);
       } catch {
         if (cancelled) return;
-        const r = await fetch('/api/auth/get-session', {
-          credentials: 'include',
-        });
-        const j = (await r.json()) as {
-          user?: {
-            id: string;
-            name?: string | null;
-            telegramId?: string | null;
-          };
-        };
-        if (j?.user) {
-          setProfile(fallbackProfileFromSessionUser(j.user));
+        const { data } = await authClient.getSession();
+        if (data?.user) {
+          setProfile(fallbackProfileFromSessionUser(data.user));
         } else {
           setProfile(fallbackProfileFromSessionUser(user));
         }

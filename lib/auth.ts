@@ -1,9 +1,8 @@
 import { betterAuth } from 'better-auth';
 import { telegram } from 'better-auth-telegram';
+import { nextCookies } from 'better-auth/next-js';
 import { jwt } from 'better-auth/plugins';
 import { Pool } from 'pg';
-
-import { nextCookiesFixed } from '@/lib/better-auth-next-cookies';
 
 const globalForPool = globalThis as unknown as {
   betterAuthPgPool: Pool | undefined;
@@ -75,11 +74,6 @@ export const auth = betterAuth({
   baseURL: getBaseURL(),
   trustedOrigins: trustedOriginsList(),
   emailAndPassword: { enabled: false },
-  /**
-   * Cookie cache is optional; a bad `session_data` cookie makes `/get-session`
-   * return null before the DB is consulted. Prefer DB-backed sessions here.
-   * @see https://better-auth.com/docs/concepts/session-management
-   */
   session: {
     cookieCache: {
       enabled: false,
@@ -117,6 +111,6 @@ export const auth = betterAuth({
         }),
       },
     }),
-    nextCookiesFixed(),
+    nextCookies(),
   ],
 });
