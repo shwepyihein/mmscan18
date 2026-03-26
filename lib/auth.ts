@@ -75,11 +75,16 @@ export const auth = betterAuth({
   baseURL: getBaseURL(),
   trustedOrigins: trustedOriginsList(),
   emailAndPassword: { enabled: false },
-  /** Vercel / proxies: use x-forwarded-proto + x-forwarded-host where relevant. */
   advanced: {
     trustedProxyHeaders: true,
+    cookie: {
+      sameSite: 'none',
+      secure: true,
+    },
   },
   session: {
+    expiresIn: 60 * 60 * 24 * 7, // 7 days
+    updateAge: 60 * 60 * 24, // 24 hours
     cookieCache: {
       enabled: false,
     },
