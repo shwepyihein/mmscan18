@@ -1,8 +1,9 @@
 import { betterAuth } from 'better-auth';
 import { telegram } from 'better-auth-telegram';
-import { nextCookies } from 'better-auth/next-js';
 import { jwt } from 'better-auth/plugins';
 import { Pool } from 'pg';
+
+import { nextCookiesFixed } from '@/lib/better-auth-next-cookies';
 
 const globalForPool = globalThis as unknown as {
   betterAuthPgPool: Pool | undefined;
@@ -63,6 +64,8 @@ function trustedOriginsList(): string[] {
   ]);
   const site = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, '');
   if (site) set.add(site);
+  const vercelUrl = process.env.VERCEL_URL?.trim().replace(/\/$/, '');
+  if (vercelUrl) set.add(`https://${vercelUrl}`);
   return Array.from(set);
 }
 
@@ -104,6 +107,6 @@ export const auth = betterAuth({
         }),
       },
     }),
-    nextCookies(),
+    nextCookiesFixed(),
   ],
 });
