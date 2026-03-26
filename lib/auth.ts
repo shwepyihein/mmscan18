@@ -58,6 +58,7 @@ function trustedOriginsList(): string[] {
     base,
     'http://localhost:3000',
     'http://127.0.0.1:3000',
+    'https://18.manhwammhub.com/',
     ...(extra ?? []),
   ]);
   const site = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, '');
