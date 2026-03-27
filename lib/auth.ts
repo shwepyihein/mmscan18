@@ -89,6 +89,9 @@ export const auth = betterAuth({
     cookieCache: {
       enabled: false,
     },
+    bearer: {
+      enabled: true,
+    },
   },
   plugins: [
     jwt({
