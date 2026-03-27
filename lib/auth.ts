@@ -76,8 +76,10 @@ export const auth = betterAuth({
   advanced: {
     trustedProxyHeaders: true,
     cookie: {
-      sameSite: 'none',
-      secure: true,
+      attributes: {
+        sameSite: 'none',
+        secure: true,
+      },
     },
   },
   session: {

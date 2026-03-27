@@ -1,9 +1,9 @@
+import type { BetterAuthPlugin } from 'better-auth';
 import {
   createAuthMiddleware,
   setShouldSkipSessionRefresh,
 } from 'better-auth/api';
 import { parseSetCookieHeader } from 'better-auth/cookies';
-import type { BetterAuthPlugin } from 'better-auth';
 
 function getSetCookieHeaderValues(headers: Headers): string[] {
   const withGetter = headers as Headers & {
@@ -64,7 +64,10 @@ export function nextCookiesFixed(): BetterAuthPlugin {
             const merged = new Map<
               string,
               NonNullable<
-                ReturnType<typeof parseSetCookieHeader> extends Map<string, infer V>
+                ReturnType<typeof parseSetCookieHeader> extends Map<
+                  string,
+                  infer V
+                >
                   ? V
                   : never
               >
@@ -93,8 +96,12 @@ export function nextCookiesFixed(): BetterAuthPlugin {
 
             merged.forEach((value, key) => {
               if (!key) return;
+              const sameSiteValue =
+                value.samesite?.toLowerCase() === 'none'
+                  ? 'none'
+                  : value.samesite;
               const opts = {
-                sameSite: value.samesite,
+                sameSite: sameSiteValue as any,
                 secure: value.secure,
                 maxAge: value['max-age'],
                 httpOnly: value.httponly,
