@@ -11,6 +11,7 @@ export const apiClient = axios.create({
   withCredentials: true,
 });
 
+/** Use localStorage for TMA persistence */
 const TOKEN_KEY = "auth_token";
 const REFRESH_TOKEN_KEY = "auth_refresh_token";
 
@@ -35,39 +36,35 @@ function pickToken(payload: any, type: 'access' | 'refresh'): string | null {
   return typeof t === "string" ? t : null;
 }
 
-/** Nest `AuthResponseDto` (flat or `{ data: ... }`) → sessionStorage. */
 export function applyNestAuthResponseDto(data: unknown): void {
   const root = unwrapNestEnvelope(data);
   if (!root) return;
-  
   const token = pickToken(root, 'access');
   const refresh = pickToken(root, 'refresh');
-  
   if (token) setStoredAuthToken(token);
   if (refresh) setStoredRefreshToken(refresh);
 }
 
 export function getStoredAuthToken(): string | null {
-  return typeof window !== "undefined" ? sessionStorage.getItem(TOKEN_KEY) : null;
+  return typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null;
 }
 
 export function setStoredAuthToken(token: string | null): void {
   if (typeof window === "undefined") return;
-  if (token) sessionStorage.setItem(TOKEN_KEY, token);
-  else sessionStorage.removeItem(TOKEN_KEY);
+  if (token) localStorage.setItem(TOKEN_KEY, token);
+  else localStorage.removeItem(TOKEN_KEY);
 }
 
 export function getStoredRefreshToken(): string | null {
-  return typeof window !== "undefined" ? sessionStorage.getItem(REFRESH_TOKEN_KEY) : null;
+  return typeof window !== "undefined" ? localStorage.getItem(REFRESH_TOKEN_KEY) : null;
 }
 
 export function setStoredRefreshToken(token: string | null): void {
   if (typeof window === "undefined") return;
-  if (token) sessionStorage.setItem(REFRESH_TOKEN_KEY, token);
-  else sessionStorage.removeItem(REFRESH_TOKEN_KEY);
+  if (token) localStorage.setItem(REFRESH_TOKEN_KEY, token);
+  else localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
-/** `POST /auth/refresh` with raw axios (no Bearer); updates stored tokens. */
 export async function refreshBackendSession(): Promise<boolean> {
   const rt = getStoredRefreshToken();
   if (!rt) return false;
@@ -91,7 +88,6 @@ function isAuthMutationPath(url: string): boolean {
 }
 
 let refreshQueue: Promise<boolean> | null = null;
-
 function enqueueRefresh(): Promise<boolean> {
   if (!refreshQueue) {
     refreshQueue = refreshBackendSession().finally(() => { refreshQueue = null; });
@@ -112,13 +108,11 @@ apiClient.interceptors.response.use(
     if (error.response?.status !== 401 || !original || original._retry || isAuthMutationPath(original.url || "")) {
       return Promise.reject(error);
     }
-
     const ok = await enqueueRefresh();
     if (!ok) {
       clearStoredTokens();
       return Promise.reject(error);
     }
-
     original._retry = true;
     const next = getStoredAuthToken();
     if (next) original.headers.Authorization = `Bearer ${next}`;
