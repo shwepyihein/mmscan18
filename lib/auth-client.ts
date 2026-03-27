@@ -29,6 +29,19 @@ function resolveBaseURL(): string {
   );
 }
 
+const BETTER_AUTH_TOKEN_KEY = 'better_auth_session_token';
+
+export function getStoredBetterAuthToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(BETTER_AUTH_TOKEN_KEY);
+}
+
+export function setStoredBetterAuthToken(token: string | null): void {
+  if (typeof window === 'undefined') return;
+  if (token) localStorage.setItem(BETTER_AUTH_TOKEN_KEY, token);
+  else localStorage.removeItem(BETTER_AUTH_TOKEN_KEY);
+}
+
 /**
  * Match Better Auth's default client parsing so JSON `null` (e.g. logged-out
  * `GET /get-session`) stays null. The old parser coerced null → `{}`, which
@@ -44,6 +57,15 @@ export const authClient = createAuthClient({
   fetchOptions: {
     credentials: 'include',
     jsonParser: authJsonParser,
+    hooks: {
+      beforeRequest: async (request) => {
+        const token = getStoredBetterAuthToken();
+        if (token) {
+          request.headers.set('Authorization', `Bearer ${token}`);
+        }
+        return request;
+      },
+    },
   },
   plugins: [jwtClient(), telegramClient()],
 });
@@ -71,13 +93,21 @@ export async function signInWithTelegramBrowser(fields: object): Promise<void> {
     credentials: 'include',
     body: JSON.stringify(stringFields),
   });
-  const body = (await res.json().catch(() => ({}))) as { message?: string };
+  const body = (await res.json().catch(() => ({}))) as {
+    message?: string;
+    session?: { token: string };
+  };
+
   if (!res.ok) {
     throw new Error(
       typeof body?.message === 'string'
         ? body.message
         : 'Telegram sign-in failed',
     );
+  }
+
+  if (body.session?.token) {
+    setStoredBetterAuthToken(body.session.token);
   }
 }
 
@@ -299,7 +329,7 @@ export async function waitForTelegramInitData(options?: {
 }
 
 type MiniAppSignInResponse =
-  | { data: unknown; error: null }
+  | { data: { session?: { token: string } }; error: null }
   | {
       data: null;
       error: { message?: string; status: number; statusText: string };
@@ -342,6 +372,11 @@ export async function signInTelegramMiniApp(initData: string): Promise<void> {
         ? `${failDetail}${status ? ` (HTTP ${status})` : ''}`
         : 'Telegram Mini App sign-in failed',
     );
+  }
+
+  // Save the session token to localStorage to bypass cookie issues in TMAs
+  if (result.data?.session?.token) {
+    setStoredBetterAuthToken(result.data.session.token);
   }
 
   const withStore = authClient as unknown as {
