@@ -1,6 +1,5 @@
 import { betterAuth } from 'better-auth';
 import { telegram } from 'better-auth-telegram';
-import { jwt } from 'better-auth/plugins';
 import { Pool } from 'pg';
 
 const globalForPool = globalThis as unknown as {
@@ -77,21 +76,15 @@ export const auth = betterAuth({
     cookieCache: {
       enabled: false,
     },
-    /** Use Bearer token in Authorization header instead of cookies. */
+    /** 
+     * Enable Bearer token support. 
+     * Better Auth will look for "Authorization: Bearer <session_token>"
+     */
     bearer: {
       enabled: true,
     },
   },
   plugins: [
-    jwt({
-      jwt: {
-        definePayload: ({ user }) => ({
-          sub: user.id,
-          telegramId: user.telegramId,
-        }),
-        expirationTime: '7d',
-      },
-    }),
     telegram({
       botToken: telegramBotToken(),
       botUsername: telegramBotUsername(),
