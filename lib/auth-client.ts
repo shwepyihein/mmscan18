@@ -43,7 +43,8 @@ export const setStoredBetterAuthToken = (token: string | null) => {
 export const authClient = createAuthClient({
   baseURL: resolveBaseURL(),
   fetchOptions: {
-    credentials: 'include',
+    /** Explicitly omit cookies to rely entirely on headers. */
+    credentials: 'omit',
     jsonParser: (text: string) =>
       text ? parseJSON(text, { strict: false }) : null,
     hooks: {
@@ -71,7 +72,8 @@ export async function signInWithTelegramBrowser(fields: object): Promise<void> {
   const res = await fetch(`${resolveBaseURL()}/api/auth/telegram/signin`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
+    /** Omit cookies here too. */
+    credentials: 'omit',
     body: JSON.stringify(toStringFields(fields)),
   });
   const body = await res.json().catch(() => ({}));
@@ -191,7 +193,11 @@ export async function signInTelegramMiniApp(initData: string): Promise<void> {
   if (typeof client.signInWithMiniApp !== 'function')
     throw new Error('Missing plugin');
 
-  const result = await client.signInWithMiniApp(raw);
+  const result = await client.signInWithMiniApp(raw, {
+    fetchOptions: {
+      credentials: 'omit',
+    }
+  });
   if (result.error) throw new Error(result.error.message || 'Sign-in failed');
   
   // Use the session token from the response for header fallback

@@ -3,8 +3,6 @@ import { telegram } from 'better-auth-telegram';
 import { jwt } from 'better-auth/plugins';
 import { Pool } from 'pg';
 
-import { nextCookiesFixed } from '@/lib/better-auth-next-cookies';
-
 const globalForPool = globalThis as unknown as {
   betterAuthPgPool: Pool | undefined;
 };
@@ -36,10 +34,6 @@ function getBaseURL(): string {
   return u.replace(/\/$/, '');
 }
 
-/**
- * Read at config init (including `next build`). Use placeholders when unset so
- * the bundle loads; Telegram routes fail verification until real env is set.
- */
 function telegramBotToken(): string {
   const t = process.env.TELEGRAM_BOT_TOKEN?.trim();
   return t ?? '__MISSING_TELEGRAM_BOT_TOKEN__';
@@ -64,8 +58,6 @@ function trustedOriginsList(): string[] {
   ]);
   const site = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, '');
   if (site) set.add(site);
-  const vercelUrl = process.env.VERCEL_URL?.trim().replace(/\/$/, '');
-  if (vercelUrl) set.add(`https://${vercelUrl}`);
   return Array.from(set);
 }
 
@@ -77,32 +69,17 @@ export const auth = betterAuth({
   emailAndPassword: { enabled: false },
   advanced: {
     trustedProxyHeaders: true,
-    cookie: {
-      attributes: {
-        sameSite: 'none',
-        secure: true,
-      },
-      sessionToken: {
-        secure: true,
-        sameSite: 'none',
-      },
-    },
   },
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // 24 hours
-    freshAge: 0, // Always verify session validity
+    freshAge: 0,
     cookieCache: {
       enabled: false,
     },
+    /** Use Bearer token in Authorization header instead of cookies. */
     bearer: {
       enabled: true,
-    },
-    cookie: {
-      attributes: {
-        sameSite: 'none',
-        secure: true,
-      },
     },
   },
   plugins: [
@@ -137,6 +114,5 @@ export const auth = betterAuth({
         }),
       },
     }),
-    nextCookiesFixed(),
   ],
 });
