@@ -12,6 +12,7 @@ import {
   signInTelegramMiniApp,
   waitForTelegramInitData,
   waitForTelegramWebApp,
+  setStoredBetterAuthToken,
 } from '@/lib/auth-client';
 import { normalizeTelegramBotUsername } from '@/lib/telegram-bot-username';
 import { useUserStore } from '@/store/useUserStore';
@@ -87,8 +88,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const user = session?.user;
 
-  console.log(session, 'session');
-
   /** Better Auth finished loading session (or "no session") and Mini App probe done. */
   const sessionResolved = tmaBootstrapped && !isPending;
 
@@ -108,7 +107,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(p);
     } catch {
       const { data } = await authClient.getSession();
-      console.log(data, 'sessiondata');
       if (data?.user) {
         setProfile(fallbackProfileFromSessionUser(data.user));
       }
@@ -118,6 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     await authClient.signOut();
     clearClientAuthSession();
+    setStoredBetterAuthToken(null);
     logoutStore();
   }, [logoutStore]);
 
@@ -162,10 +161,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         /**
          * Telegram WebView sometimes applies `Set-Cookie` slightly after the
          * sign-in fetch resolves. Retry `get-session` so `useSession` catches up.
+         * The header fallback will help here too.
          */
         for (let attempt = 0; attempt < 6; attempt++) {
           const { data } = await authClient.getSession();
-          console.log(data, 'data');
           if (data?.user) break;
           await new Promise((r) => setTimeout(r, 100 * (attempt + 1)));
         }

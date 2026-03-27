@@ -29,18 +29,6 @@ function resolveBaseURL(): string {
 
 const BETTER_AUTH_TOKEN_KEY = 'better_auth_session_token';
 
-/** Sync Better Auth JWT to localStorage so the beforeRequest hook can use it. */
-async function syncTokenToStorage() {
-  try {
-    const { data } = await authClient.token();
-    if (data?.token) {
-      setStoredBetterAuthToken(data.token);
-    }
-  } catch {
-    /* ignore */
-  }
-}
-
 export const getStoredBetterAuthToken = () =>
   typeof window !== 'undefined'
     ? localStorage.getItem(BETTER_AUTH_TOKEN_KEY)
@@ -61,7 +49,9 @@ export const authClient = createAuthClient({
     hooks: {
       beforeRequest: async ({ request }: any) => {
         const token = getStoredBetterAuthToken();
-        if (token) request.headers.set('Authorization', `Bearer ${token}`);
+        if (token) {
+          request.headers.set('Authorization', `Bearer ${token}`);
+        }
         return request;
       },
     },
@@ -87,8 +77,10 @@ export async function signInWithTelegramBrowser(fields: object): Promise<void> {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body?.message || 'Telegram sign-in failed');
   
-  // Retrieve and store JWT for header fallback
-  await syncTokenToStorage();
+  // Use the session token from the response for header fallback
+  if (body.session?.token) {
+    setStoredBetterAuthToken(body.session.token);
+  }
 }
 
 export function isTelegramMiniAppEnvironment(): boolean {
@@ -202,8 +194,10 @@ export async function signInTelegramMiniApp(initData: string): Promise<void> {
   const result = await client.signInWithMiniApp(raw);
   if (result.error) throw new Error(result.error.message || 'Sign-in failed');
   
-  // Retrieve and store JWT for header fallback
-  await syncTokenToStorage();
+  // Use the session token from the response for header fallback
+  if (result.data?.session?.token) {
+    setStoredBetterAuthToken(result.data.session.token);
+  }
 
   (authClient as any).$store?.notify('$sessionSignal');
   clearTelegramInitDataReloadFlag();

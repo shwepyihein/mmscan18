@@ -82,6 +82,10 @@ export const auth = betterAuth({
         sameSite: 'none',
         secure: true,
       },
+      sessionToken: {
+        secure: true,
+        sameSite: 'none',
+      },
     },
   },
   session: {
