@@ -9,10 +9,10 @@ import {
   authClient,
   signInWithTelegramBrowser as exchangeTelegramWidgetForSession,
   reloadOnceForTelegramInitData,
+  setStoredBetterAuthToken,
   signInTelegramMiniApp,
   waitForTelegramInitData,
   waitForTelegramWebApp,
-  setStoredBetterAuthToken,
 } from '@/lib/auth-client';
 import { normalizeTelegramBotUsername } from '@/lib/telegram-bot-username';
 import { useUserStore } from '@/store/useUserStore';
