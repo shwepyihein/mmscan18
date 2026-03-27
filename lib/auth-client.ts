@@ -62,6 +62,9 @@ export const authClient = createAuthClient({
         const token = getStoredBetterAuthToken();
         if (token) {
           request.headers.set('Authorization', `Bearer ${token}`);
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`[BetterAuth] Request: ${request.url} with Bearer token`);
+          }
         }
         return request;
       },

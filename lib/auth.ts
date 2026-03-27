@@ -3,6 +3,8 @@ import { telegram } from 'better-auth-telegram';
 import { jwt } from 'better-auth/plugins';
 import { Pool } from 'pg';
 
+import { nextCookiesFixed } from '@/lib/better-auth-next-cookies';
+
 const globalForPool = globalThis as unknown as {
   betterAuthPgPool: Pool | undefined;
 };
@@ -125,5 +127,6 @@ export const auth = betterAuth({
         }),
       },
     }),
+    nextCookiesFixed(),
   ],
 });
