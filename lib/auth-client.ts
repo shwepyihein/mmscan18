@@ -58,7 +58,7 @@ export const authClient = createAuthClient({
     credentials: 'include',
     jsonParser: authJsonParser,
     hooks: {
-      beforeRequest: async ({ request }) => {
+      beforeRequest: async ({ request }: any) => {
         const token = getStoredBetterAuthToken();
         if (token) {
           request.headers.set('Authorization', `Bearer ${token}`);
