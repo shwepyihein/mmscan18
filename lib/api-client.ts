@@ -17,52 +17,38 @@ const REFRESH_TOKEN_KEY = "auth_refresh_token";
 type RetryableRequestConfig = InternalAxiosRequestConfig & { _retry?: boolean };
 
 function unwrapNestEnvelope(payload: unknown): Record<string, unknown> | null {
-  const raw =
-    payload && typeof payload === "object"
-      ? (payload as Record<string, unknown>)
-      : null;
-  if (!raw) return null;
-  const inner = raw.data;
-  if (inner && typeof inner === "object" && !Array.isArray(inner)) {
-    return inner as Record<string, unknown>;
+  if (payload && typeof payload === "object") {
+    const p = payload as Record<string, any>;
+    if (p.data && typeof p.data === "object" && !Array.isArray(p.data)) return p.data;
+    return p;
   }
-  return raw;
+  return null;
 }
 
-function pickAccessToken(payload: unknown): string | null {
+function pickToken(payload: any, type: 'access' | 'refresh'): string | null {
   if (!payload || typeof payload !== "object") return null;
-  const p = payload as Record<string, unknown>;
-  const t = p.accessToken ?? p.token ?? p.access_token ?? p.jwt;
-  return typeof t === "string" && t.length > 0 ? t : null;
-}
-
-function pickRefreshTokenFromDto(payload: unknown): string | null {
-  if (!payload || typeof payload !== "object") return null;
-  const p = payload as Record<string, unknown>;
-  const t = p.refreshToken ?? p.refresh_token;
-  return typeof t === "string" && t.length > 0 ? t : null;
+  if (type === 'access') {
+    const t = payload.accessToken ?? payload.token ?? payload.access_token ?? payload.jwt;
+    return typeof t === "string" ? t : null;
+  }
+  const t = payload.refreshToken ?? payload.refresh_token;
+  return typeof t === "string" ? t : null;
 }
 
 /** Nest `AuthResponseDto` (flat or `{ data: ... }`) → sessionStorage. */
 export function applyNestAuthResponseDto(data: unknown): void {
-  const inner = unwrapNestEnvelope(data);
-  const root = inner ?? (data && typeof data === "object" ? data : null);
-  if (!root || typeof root !== "object") return;
-  const token =
-    pickAccessToken(root) ??
-    (inner && typeof inner === "object" ? pickAccessToken(inner) : null);
-  const refresh =
-    pickRefreshTokenFromDto(root) ??
-    (inner && typeof inner === "object"
-      ? pickRefreshTokenFromDto(inner)
-      : null);
+  const root = unwrapNestEnvelope(data);
+  if (!root) return;
+  
+  const token = pickToken(root, 'access');
+  const refresh = pickToken(root, 'refresh');
+  
   if (token) setStoredAuthToken(token);
   if (refresh) setStoredRefreshToken(refresh);
 }
 
 export function getStoredAuthToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return sessionStorage.getItem(TOKEN_KEY);
+  return typeof window !== "undefined" ? sessionStorage.getItem(TOKEN_KEY) : null;
 }
 
 export function setStoredAuthToken(token: string | null): void {
@@ -72,8 +58,7 @@ export function setStoredAuthToken(token: string | null): void {
 }
 
 export function getStoredRefreshToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return sessionStorage.getItem(REFRESH_TOKEN_KEY);
+  return typeof window !== "undefined" ? sessionStorage.getItem(REFRESH_TOKEN_KEY) : null;
 }
 
 export function setStoredRefreshToken(token: string | null): void {
@@ -93,13 +78,7 @@ export async function refreshBackendSession(): Promise<boolean> {
       { withCredentials: true },
     );
     applyNestAuthResponseDto(res.data);
-    const inner = unwrapNestEnvelope(res.data) ?? res.data;
-    return Boolean(
-      pickAccessToken(inner) ??
-        (typeof res.data === "object" && res.data
-          ? pickAccessToken(res.data)
-          : null),
-    );
+    return !!pickToken(unwrapNestEnvelope(res.data), 'access');
   } catch {
     return false;
   }
@@ -107,62 +86,47 @@ export async function refreshBackendSession(): Promise<boolean> {
 
 function isAuthMutationPath(url: string): boolean {
   const u = url.toLowerCase();
-  return (
-    u.includes("auth/refresh") ||
-    u.includes("auth/login") ||
-    u.includes("auth/telegram-register") ||
-    u.includes("auth/telegram-login") ||
-    u.includes("auth/telegram-user-exists")
-  );
+  return ["auth/refresh", "auth/login", "auth/telegram-register", "auth/telegram-login", "auth/telegram-user-exists"]
+    .some(path => u.includes(path));
 }
 
 let refreshQueue: Promise<boolean> | null = null;
 
 function enqueueRefresh(): Promise<boolean> {
   if (!refreshQueue) {
-    refreshQueue = refreshBackendSession().finally(() => {
-      refreshQueue = null;
-    });
+    refreshQueue = refreshBackendSession().finally(() => { refreshQueue = null; });
   }
   return refreshQueue;
 }
 
 apiClient.interceptors.request.use((config) => {
   const t = getStoredAuthToken();
-  if (t) {
-    config.headers.Authorization = `Bearer ${t}`;
-  }
+  if (t) config.headers.Authorization = `Bearer ${t}`;
   return config;
 });
 
 apiClient.interceptors.response.use(
   (r) => r,
   async (error: AxiosError) => {
-    const status = error.response?.status;
     const original = error.config as RetryableRequestConfig | undefined;
-    const url = String(original?.url ?? "");
-
-    if (
-      status !== 401 ||
-      !original ||
-      original._retry ||
-      isAuthMutationPath(url)
-    ) {
+    if (error.response?.status !== 401 || !original || original._retry || isAuthMutationPath(original.url || "")) {
       return Promise.reject(error);
     }
 
     const ok = await enqueueRefresh();
     if (!ok) {
-      setStoredAuthToken(null);
-      setStoredRefreshToken(null);
+      clearStoredTokens();
       return Promise.reject(error);
     }
 
     original._retry = true;
     const next = getStoredAuthToken();
-    if (next) {
-      original.headers.Authorization = `Bearer ${next}`;
-    }
+    if (next) original.headers.Authorization = `Bearer ${next}`;
     return apiClient.request(original);
   },
 );
+
+function clearStoredTokens() {
+  setStoredAuthToken(null);
+  setStoredRefreshToken(null);
+}
