@@ -9,10 +9,10 @@ import {
   authClient,
   signInWithTelegramBrowser as exchangeTelegramWidgetForSession,
   reloadOnceForTelegramInitData,
+  setStoredBetterAuthToken,
   signInTelegramMiniApp,
   waitForTelegramInitData,
   waitForTelegramWebApp,
-  setStoredBetterAuthToken,
 } from '@/lib/auth-client';
 import { normalizeTelegramBotUsername } from '@/lib/telegram-bot-username';
 import { useUserStore } from '@/store/useUserStore';
@@ -47,45 +47,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isTelegramMiniApp, setIsTelegramMiniApp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bootstrapped, setBootstrapped] = useState(false);
-  
+
   const setProfile = useUserStore((s) => s.setProfile);
   const logoutStore = useUserStore((s) => s.logout);
 
-  /** 
-   * RELIABLE AUTH CHECK: 
+  /**
+   * RELIABLE AUTH CHECK:
    * In TMA, we trust the NestJS token in localStorage.
    * If we have a token, we are 'authenticated' even if Better Auth get-session is null.
    */
   const isAuthenticated = status === 'authenticated';
   const isLoading = status === 'loading' || !bootstrapped;
 
-  const refreshProfile = useCallback(async (retries = 3) => {
-    const token = getStoredAuthToken();
-    if (!token) {
-      setStatus('unauthenticated');
-      return;
-    }
-
-    for (let i = 0; i < retries; i++) {
-      try {
-        const p = await fetchCurrentProfile();
-        setProfile(p);
-        setStatus('authenticated');
+  const refreshProfile = useCallback(
+    async (retries = 3) => {
+      const token = getStoredAuthToken();
+      if (!token) {
+        setStatus('unauthenticated');
         return;
-      } catch (err) {
-        console.error(`Profile fetch attempt ${i+1} failed`, err);
-        if (i === retries - 1) {
-          // Final attempt failed, but we still have a token. 
-          // We stay in 'authenticated' state but with a null profile fallback if needed.
-          setStatus('authenticated'); 
-        }
-        await new Promise(r => setTimeout(r, 500 * (i + 1)));
       }
-    }
-  }, [setProfile]);
+
+      for (let i = 0; i < retries; i++) {
+        try {
+          const p = await fetchCurrentProfile();
+          setProfile(p);
+          setStatus('authenticated');
+          return;
+        } catch (err) {
+          console.error(`Profile fetch attempt ${i + 1} failed`, err);
+          if (i === retries - 1) {
+            // Final attempt failed, but we still have a token.
+            // We stay in 'authenticated' state but with a null profile fallback if needed.
+            setStatus('authenticated');
+          }
+          await new Promise((r) => setTimeout(r, 500 * (i + 1)));
+        }
+      }
+    },
+    [setProfile],
+  );
 
   const signOut = useCallback(async () => {
-    try { await authClient.signOut(); } catch {}
+    try {
+      await authClient.signOut();
+    } catch {}
     clearClientAuthSession();
     setStoredBetterAuthToken(null);
     logoutStore();
@@ -121,7 +126,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (!nest.ok) throw new Error('Backend sync failed');
 
           // 2. Try Better Auth in background (Don't let it block us)
-          signInTelegramMiniApp(initData).catch(err => console.warn('Better Auth background sync failed', err));
+          signInTelegramMiniApp(initData).catch((err) =>
+            console.warn('Better Auth background sync failed', err),
+          );
 
           // 3. Load profile from NestJS
           await refreshProfile();
@@ -143,39 +150,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!cancelled) setBootstrapped(true);
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [refreshProfile]);
 
-  const signInWithTelegramBrowser = useCallback(async (fields: object) => {
-    setError(null);
-    setStatus('loading');
-    try {
-      const nest = await ensureNestTelegramSession(fields);
-      if (!nest.ok) throw new Error('Could not sync with the server.');
-      
-      // Attempt Better Auth sync
-      try { await exchangeTelegramWidgetForSession(fields); } catch {}
-      
-      await refreshProfile();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Login failed');
-      setStatus('unauthenticated');
-    }
-  }, [refreshProfile]);
+  const signInWithTelegramBrowser = useCallback(
+    async (fields: object) => {
+      setError(null);
+      setStatus('loading');
+      try {
+        const nest = await ensureNestTelegramSession(fields);
+        if (!nest.ok) throw new Error('Could not sync with the server.');
 
-  const value = useMemo(() => ({
-    status,
-    isTelegramMiniApp,
-    error,
-    signInWithTelegramBrowser,
-    refreshProfile,
-    signOut,
-    isAuthenticated,
-    isLoading,
-  }), [status, isTelegramMiniApp, error, signInWithTelegramBrowser, refreshProfile, signOut, isAuthenticated, isLoading]);
+        // Attempt Better Auth sync
+        try {
+          await exchangeTelegramWidgetForSession(fields);
+        } catch {}
 
-  const botName = normalizeTelegramBotUsername(process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? '');
+        await refreshProfile();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Login failed');
+        setStatus('unauthenticated');
+      }
+    },
+    [refreshProfile],
+  );
 
+  const value = useMemo(
+    () => ({
+      status,
+      isTelegramMiniApp,
+      error,
+      signInWithTelegramBrowser,
+      refreshProfile,
+      signOut,
+      isAuthenticated,
+      isLoading,
+    }),
+    [
+      status,
+      isTelegramMiniApp,
+      error,
+      signInWithTelegramBrowser,
+      refreshProfile,
+      signOut,
+      isAuthenticated,
+      isLoading,
+    ],
+  );
+
+  const botName = normalizeTelegramBotUsername(
+    process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? '',
+  );
+  console.log(botName);
   if (isLoading) {
     return (
       <AuthContext.Provider value={value}>
@@ -187,8 +215,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             </div>
           </div>
           <div className='flex flex-col gap-2'>
-            <h2 className='text-xl font-black text-zinc-50 uppercase tracking-tighter'>Initializing</h2>
-            <p className='text-[10px] font-black text-zinc-600 uppercase tracking-[0.2em]'>Secure Session</p>
+            <h2 className='text-xl font-black text-zinc-50 uppercase tracking-tighter'>
+              Initializing
+            </h2>
+            <p className='text-[10px] font-black text-zinc-600 uppercase tracking-[0.2em]'>
+              Secure Session
+            </p>
           </div>
         </div>
       </AuthContext.Provider>
@@ -204,7 +236,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               <LogIn size={48} />
             </div>
             <div className='flex flex-col gap-2'>
-              <h1 className='text-3xl font-black text-zinc-50 uppercase tracking-tighter'>Welcome</h1>
+              <h1 className='text-3xl font-black text-zinc-50 uppercase tracking-tighter'>
+                Welcome
+              </h1>
               <p className='text-sm text-zinc-500 font-medium max-w-[240px] leading-relaxed'>
                 Sign in with Telegram to access your premium library.
               </p>
@@ -216,7 +250,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               <div className='p-4 rounded-2xl bg-red-500/5 border border-red-500/10 flex items-start gap-3 text-left'>
                 <AlertCircle className='w-5 h-5 text-red-500 shrink-0 mt-0.5' />
                 <div className='flex flex-col gap-1'>
-                  <p className='text-xs font-black text-red-500 uppercase'>Sync Failed</p>
+                  <p className='text-xs font-black text-red-500 uppercase'>
+                    Sync Failed
+                  </p>
                   <p className='text-[10px] text-zinc-500 font-bold leading-tight uppercase tracking-wider'>
                     Please restart the mini-app.
                   </p>
@@ -224,12 +260,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               </div>
             ) : (
               <>
-                <TelegramLoginWidget botName={botName} onAuth={signInWithTelegramBrowser} />
-                <p className='text-[10px] text-zinc-600 font-bold uppercase tracking-widest mt-2'>Secure Login via Telegram</p>
+                <TelegramLoginWidget
+                  botName={botName}
+                  onAuth={signInWithTelegramBrowser}
+                />
+                <p className='text-[10px] text-zinc-600 font-bold uppercase tracking-widest mt-2'>
+                  Secure Login via Telegram
+                </p>
               </>
             )}
           </div>
-          {error && <p className='text-xs text-red-400 font-medium bg-red-500/5 px-4 py-2 rounded-full border border-red-500/10'>{error}</p>}
+          {error && (
+            <p className='text-xs text-red-400 font-medium bg-red-500/5 px-4 py-2 rounded-full border border-red-500/10'>
+              {error}
+            </p>
+          )}
         </div>
       </AuthContext.Provider>
     );

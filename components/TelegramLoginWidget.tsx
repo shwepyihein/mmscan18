@@ -1,6 +1,6 @@
 import { getPublicSiteUrl } from '@/lib/site-url';
-import { getTelegramLoginWidgetBlockReason } from '@/lib/telegram-domain';
 import { normalizeTelegramBotUsername } from '@/lib/telegram-bot-username';
+import { getTelegramLoginWidgetBlockReason } from '@/lib/telegram-domain';
 import { cn } from '@/lib/utils';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
@@ -31,7 +31,7 @@ interface TelegramLoginWidgetProps {
 }
 
 export function TelegramLoginWidget({
-  botName,
+  botName = 'hotmmmanhwavip_bot',
   className = '',
   onAuth,
   globalCallbackName = 'onTelegramAuth',
@@ -122,8 +122,11 @@ export function TelegramLoginWidget({
     >
       {!botNormalized ? (
         <p className='px-2 text-center text-xs text-amber-500/90 leading-relaxed'>
-          Set <code className='text-zinc-400'>NEXT_PUBLIC_TELEGRAM_BOT_USERNAME</code> to your
-          bot&apos;s username (from @BotFather), not the display name.
+          Set{' '}
+          <code className='text-zinc-400'>
+            NEXT_PUBLIC_TELEGRAM_BOT_USERNAME
+          </code>{' '}
+          to your bot&apos;s username (from @BotFather), not the display name.
         </p>
       ) : null}
 
