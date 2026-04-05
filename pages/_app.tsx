@@ -1,6 +1,7 @@
 import "@/styles/globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
 import { Layout } from "@/components/Layout";
+import { shouldInitializeTelegramMiniAppSdk } from "@/lib/telegram-mini-app-host";
 import type { AppProps } from "next/app";
 import {
   bindMiniAppCSSVars,
@@ -16,6 +17,8 @@ import { useEffect } from "react";
 export default function App({ Component, pageProps }: AppProps) {
   useEffect(() => {
     let cancelled = false;
+    if (!shouldInitializeTelegramMiniAppSdk()) return;
+
     isTMA().then((tma) => {
       if (!tma || cancelled) return;
       try {

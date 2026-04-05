@@ -239,7 +239,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const botName = normalizeTelegramBotUsername(
     process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? '',
   );
-  console.log(botName);
+
   if (isLoading) {
     return (
       <AuthContext.Provider value={value}>
