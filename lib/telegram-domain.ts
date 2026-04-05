@@ -27,19 +27,17 @@ export function isPublicSiteUrlHostMismatch(): boolean {
 }
 
 /**
- * When non-null, skip loading the Login Widget — Telegram will show "Bot domain invalid"
- * if the page breaks these rules (@BotFather `/setdomain` must match this origin).
+ * When non-null, skip loading the Login Widget. Telegram still requires @BotFather
+ * `/setdomain` for the host users open; localhost cannot be used.
+ *
+ * Host vs `NEXT_PUBLIC_SITE_URL` mismatches are not blocked here — the widget builds
+ * `data-auth-url` from `window.location.origin` so embed and redirect stay aligned.
  */
 export function getTelegramLoginWidgetBlockReason(): string | null {
   if (typeof window === "undefined") return null;
 
   if (isLocalhostHostname(window.location.hostname)) {
     return "Telegram Login cannot use localhost. Use HTTPS (e.g. ngrok) on a host added in @BotFather, and set NEXT_PUBLIC_SITE_URL to that same origin.";
-  }
-
-  if (isPublicSiteUrlHostMismatch()) {
-    const expected = process.env.NEXT_PUBLIC_SITE_URL?.trim() ?? "";
-    return `This URL (${window.location.host}) does not match NEXT_PUBLIC_SITE_URL (${expected}). Fix the hostname or env so they match your bot domain in @BotFather.`;
   }
 
   return null;

@@ -86,7 +86,9 @@ export function TelegramLoginWidget({
     script.setAttribute('data-request-access', requestAccess);
 
     if (useRedirect && siteUrl) {
-      const url = new URL(`${siteUrl}/auth/telegram-callback`);
+      /** Must match the page origin or Telegram returns "Bot domain is invalid" (www vs apex, etc.). */
+      const origin = window.location.origin.replace(/\/$/, '');
+      const url = new URL(`${origin}/auth/telegram-callback`);
       script.setAttribute('data-auth-url', url.toString());
     } else {
       script.setAttribute('data-onauth', `${globalCallbackName}(user)`);
