@@ -77,7 +77,17 @@ export async function signInWithTelegramBrowser(fields: object): Promise<void> {
     body: JSON.stringify(toStringFields(fields)),
   });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body?.message || 'Telegram sign-in failed');
+  if (!res.ok) {
+    console.error('[better-auth] POST /api/auth/telegram/signin failed', {
+      status: res.status,
+      statusText: res.statusText,
+      body,
+    });
+    throw new Error(
+      body?.message ||
+        `Telegram sign-in failed (${res.status} ${res.statusText})`,
+    );
+  }
   
   // Use the session token from the response for header fallback
   if (body.session?.token) {

@@ -123,7 +123,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           // 1. Get NestJS Session (Our source of truth)
           const nest = await ensureNestTelegramSession(initData);
-          if (!nest.ok) throw new Error('Backend sync failed');
+          if (!nest.ok) {
+            console.error('[Auth] Mini App ensureNestTelegramSession failed', {
+              reason: nest.reason,
+            });
+            throw new Error('Backend sync failed');
+          }
 
           // 2. Try Better Auth in background (Don't let it block us)
           signInTelegramMiniApp(initData).catch((err) =>
@@ -133,6 +138,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // 3. Load profile from NestJS
           await refreshProfile();
         } catch (e) {
+          console.error('[Auth] Mini App bootstrap error', {
+            message: e instanceof Error ? e.message : String(e),
+            name: e instanceof Error ? e.name : typeof e,
+            stack: e instanceof Error ? e.stack : undefined,
+            cause:
+              e instanceof Error && 'cause' in e
+                ? (e as Error & { cause?: unknown }).cause
+                : undefined,
+          });
           if (!existingToken) {
             setError(e instanceof Error ? e.message : 'Authentication failed');
             setStatus('unauthenticated');
@@ -161,15 +175,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStatus('loading');
       try {
         const nest = await ensureNestTelegramSession(fields);
-        if (!nest.ok) throw new Error('Could not sync with the server.');
+        if (!nest.ok) {
+          const keys =
+            fields && typeof fields === 'object' ? Object.keys(fields) : [];
+          console.error('[Auth] Browser ensureNestTelegramSession failed', {
+            reason: nest.reason,
+            payloadKeys: keys,
+          });
+          throw new Error('Could not sync with the server.');
+        }
 
-        // Attempt Better Auth sync
         try {
           await exchangeTelegramWidgetForSession(fields);
-        } catch {}
+        } catch (baErr) {
+          console.warn('[Auth] Better Auth telegram signin failed (non-fatal)', {
+            err: baErr,
+            message:
+              baErr instanceof Error ? baErr.message : String(baErr ?? ''),
+          });
+        }
 
         await refreshProfile();
       } catch (e) {
+        console.error('[Auth] signInWithTelegramBrowser failed', {
+          message: e instanceof Error ? e.message : String(e),
+          name: e instanceof Error ? e.name : typeof e,
+          stack: e instanceof Error ? e.stack : undefined,
+          cause:
+            e instanceof Error && 'cause' in e
+              ? (e as Error & { cause?: unknown }).cause
+              : undefined,
+        });
         setError(e instanceof Error ? e.message : 'Login failed');
         setStatus('unauthenticated');
       }

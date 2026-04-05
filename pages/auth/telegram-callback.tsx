@@ -42,6 +42,19 @@ export default function TelegramAuthCallbackPage() {
       })
       .catch((e: unknown) => {
         startedRef.current = false;
+        console.error("[telegram-callback] signInWithTelegramBrowser failed", {
+          message: e instanceof Error ? e.message : String(e),
+          name: e instanceof Error ? e.name : typeof e,
+          stack: e instanceof Error ? e.stack : undefined,
+          cause:
+            e instanceof Error && "cause" in e
+              ? (e as Error & { cause?: unknown }).cause
+              : undefined,
+          queryKeys:
+            router.query && typeof router.query === "object"
+              ? Object.keys(router.query)
+              : [],
+        });
         setIsError(true);
         setMessage(
           e instanceof Error ? e.message : "Could not complete Telegram sign-in.",

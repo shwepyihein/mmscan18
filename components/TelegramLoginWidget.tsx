@@ -1,6 +1,9 @@
 import { getPublicSiteUrl } from '@/lib/site-url';
 import { normalizeTelegramBotUsername } from '@/lib/telegram-bot-username';
-import { getTelegramLoginWidgetBlockReason } from '@/lib/telegram-domain';
+import {
+  getTelegramLoginWidgetBlockReason,
+  isPublicSiteUrlHostMismatch,
+} from '@/lib/telegram-domain';
 import { cn } from '@/lib/utils';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
@@ -48,7 +51,17 @@ export function TelegramLoginWidget({
   }, [onAuth]);
 
   useLayoutEffect(() => {
-    setDomainBlock(getTelegramLoginWidgetBlockReason());
+    const block = getTelegramLoginWidgetBlockReason();
+    setDomainBlock(block);
+    if (typeof window !== 'undefined' && block) {
+      console.warn('[TelegramLoginWidget] Widget disabled:', block, {
+        host: window.location.host,
+        origin: window.location.origin,
+        href: window.location.href,
+        NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL ?? '(unset)',
+        hostMismatchWithEnv: isPublicSiteUrlHostMismatch(),
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -71,7 +84,17 @@ export function TelegramLoginWidget({
 
     if (!useRedirect) {
       w[globalCallbackName] = (user: TelegramUser) => {
-        void onAuthRef.current?.(user);
+        void (async () => {
+          try {
+            await onAuthRef.current?.(user);
+          } catch (err) {
+            console.error('[TelegramLoginWidget] onAuth callback failed', {
+              err,
+              telegramUserId: user?.id,
+              auth_date: user?.auth_date,
+            });
+          }
+        })();
       };
     }
 
@@ -85,14 +108,35 @@ export function TelegramLoginWidget({
     script.setAttribute('data-radius', cornerRadius.toString());
     script.setAttribute('data-request-access', requestAccess);
 
+    const origin = window.location.origin.replace(/\/$/, '');
+    let dataAuthUrl: string | undefined;
     if (useRedirect && siteUrl) {
       /** Must match the page origin or Telegram returns "Bot domain is invalid" (www vs apex, etc.). */
-      const origin = window.location.origin.replace(/\/$/, '');
       const url = new URL(`${origin}/auth/telegram-callback`);
-      script.setAttribute('data-auth-url', url.toString());
+      dataAuthUrl = url.toString();
+      script.setAttribute('data-auth-url', dataAuthUrl);
     } else {
       script.setAttribute('data-onauth', `${globalCallbackName}(user)`);
     }
+
+    const widgetDebug = {
+      bot,
+      mode: useRedirect ? ('redirect' as const) : ('onauth' as const),
+      dataAuthUrl,
+      onauthCallback: useRedirect ? undefined : globalCallbackName,
+      embedOrigin: origin,
+      NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL ?? '(unset)',
+      hostMismatchWithEnv: isPublicSiteUrlHostMismatch(),
+      note: 'If the iframe shows "Bot domain is invalid", set the same host in @BotFather /setdomain.',
+    };
+    console.info('[TelegramLoginWidget] Injecting widget script', widgetDebug);
+
+    script.onerror = () => {
+      console.error(
+        '[TelegramLoginWidget] Failed to load https://telegram.org/js/telegram-widget.js',
+        widgetDebug,
+      );
+    };
 
     containerRef.current.appendChild(script);
 
