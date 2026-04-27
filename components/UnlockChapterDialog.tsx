@@ -7,8 +7,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Lock, Star, AlertCircle } from "lucide-react";
+import { Lock, Star, AlertCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/router";
+import { useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { useUserStore } from "@/store/useUserStore";
 
@@ -28,23 +29,32 @@ export function UnlockChapterDialog({ open, onOpenChange, chapter, onSuccess }: 
   const router = useRouter();
   const { profile, unlockChapter } = useUserStore();
   const { isAuthenticated, isLoading } = useAuth();
+  const [unlocking, setUnlocking] = useState(false);
+  const [unlockError, setUnlockError] = useState<string | null>(null);
   const canAfford =
     isAuthenticated &&
     !!profile &&
-    profile.coins >= (chapter?.price || 0);
+    profile.coinBalance >= (chapter?.price || 0);
 
-  const handleUnlock = () => {
+  const handleUnlock = async () => {
     if (!isAuthenticated) {
       router.push("/profile");
       onOpenChange(false);
       return;
     }
-    if (chapter) {
-      const result = unlockChapter(chapter.id, chapter.price);
+    if (!chapter) return;
+    setUnlockError(null);
+    setUnlocking(true);
+    try {
+      const result = await unlockChapter(chapter.id, chapter.price);
       if (result.success) {
         onSuccess();
         onOpenChange(false);
+      } else {
+        setUnlockError(result.error ?? "Could not unlock this chapter.");
       }
+    } finally {
+      setUnlocking(false);
     }
   };
 
@@ -83,12 +93,19 @@ export function UnlockChapterDialog({ open, onOpenChange, chapter, onSuccess }: 
             </div>
           )}
 
+          {unlockError && (
+            <div className="flex items-center gap-3 p-4 bg-red-500/5 border border-red-500/10 rounded-xl">
+              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+              <p className="text-[11px] text-red-400 font-medium">{unlockError}</p>
+            </div>
+          )}
+
           {isAuthenticated && !canAfford && (
             <div className="flex items-center gap-3 p-4 bg-red-500/5 border border-red-500/10 rounded-xl">
               <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
               <div className="flex flex-col">
                 <p className="text-[11px] text-red-500 font-bold uppercase tracking-widest">Insufficient Coins</p>
-                <p className="text-[10px] text-zinc-500 font-medium leading-none">Your balance: {profile?.coins || 0} Coins</p>
+                <p className="text-[10px] text-zinc-500 font-medium leading-none">Your balance: {profile?.coinBalance ?? 0} Coins</p>
               </div>
             </div>
           )}
@@ -114,10 +131,18 @@ export function UnlockChapterDialog({ open, onOpenChange, chapter, onSuccess }: 
             </Button>
           ) : canAfford ? (
             <Button 
-              onClick={handleUnlock}
+              onClick={() => void handleUnlock()}
+              disabled={unlocking}
               className="w-full bg-violet-600 hover:bg-violet-700 h-14 text-sm font-black rounded-xl uppercase tracking-widest shadow-lg shadow-violet-900/20"
             >
-              Unlock Now
+              {unlocking ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin inline" />
+                  Unlocking…
+                </>
+              ) : (
+                "Unlock Now"
+              )}
             </Button>
           ) : (
             <Button 

@@ -2,21 +2,16 @@ import {
   clearClientAuthSession,
   ensureNestTelegramSession,
   fetchCurrentProfile,
+  loginWithEmailPassword,
 } from '@/api/users';
-import { TelegramLoginWidget } from '@/components/TelegramLoginWidget';
 import { getStoredAuthToken } from '@/lib/api-client';
 import {
-  authClient,
-  signInWithTelegramBrowser as exchangeTelegramWidgetForSession,
   reloadOnceForTelegramInitData,
-  setStoredBetterAuthToken,
-  signInTelegramMiniApp,
   waitForTelegramInitData,
   waitForTelegramWebApp,
-} from '@/lib/auth-client';
-import { normalizeTelegramBotUsername } from '@/lib/telegram-bot-username';
+} from '@/lib/telegram-webapp';
 import { useUserStore } from '@/store/useUserStore';
-import { AlertCircle, LogIn, ShieldCheck } from 'lucide-react';
+import { AlertCircle, ShieldCheck } from 'lucide-react';
 import {
   createContext,
   useCallback,
@@ -34,6 +29,7 @@ type AuthContextValue = {
   isTelegramMiniApp: boolean;
   error: string | null;
   signInWithTelegramBrowser: (fields: object) => Promise<void>;
+  signInWithEmailPassword: (email: string, password: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
   isAuthenticated: boolean;
@@ -51,11 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setProfile = useUserStore((s) => s.setProfile);
   const logoutStore = useUserStore((s) => s.logout);
 
-  /**
-   * RELIABLE AUTH CHECK:
-   * In TMA, we trust the NestJS token in localStorage.
-   * If we have a token, we are 'authenticated' even if Better Auth get-session is null.
-   */
+  /** Nest JWT in localStorage is the source of truth for API access. */
   const isAuthenticated = status === 'authenticated';
   const isLoading = status === 'loading' || !bootstrapped;
 
@@ -71,10 +63,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const p = await fetchCurrentProfile();
           setProfile(p);
+          await useUserStore.getState().fetchUnlockedChapters();
           setStatus('authenticated');
           return;
-        } catch (err) {
-          console.error(`Profile fetch attempt ${i + 1} failed`, err);
+        } catch {
           if (i === retries - 1) {
             // Final attempt failed, but we still have a token.
             // We stay in 'authenticated' state but with a null profile fallback if needed.
@@ -88,11 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
-    try {
-      await authClient.signOut();
-    } catch {}
     clearClientAuthSession();
-    setStoredBetterAuthToken(null);
     logoutStore();
     setStatus('unauthenticated');
   }, [logoutStore]);
@@ -121,32 +109,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         try {
-          // 1. Get NestJS Session (Our source of truth)
           const nest = await ensureNestTelegramSession(initData);
-          if (!nest.ok) {
-            console.error('[Auth] Mini App ensureNestTelegramSession failed', {
-              reason: nest.reason,
-            });
-            throw new Error('Backend sync failed');
-          }
+          if (!nest.ok) throw new Error('Backend sync failed');
 
-          // 2. Try Better Auth in background (Don't let it block us)
-          signInTelegramMiniApp(initData).catch((err) =>
-            console.warn('Better Auth background sync failed', err),
-          );
-
-          // 3. Load profile from NestJS
           await refreshProfile();
         } catch (e) {
-          console.error('[Auth] Mini App bootstrap error', {
-            message: e instanceof Error ? e.message : String(e),
-            name: e instanceof Error ? e.name : typeof e,
-            stack: e instanceof Error ? e.stack : undefined,
-            cause:
-              e instanceof Error && 'cause' in e
-                ? (e as Error & { cause?: unknown }).cause
-                : undefined,
-          });
           if (!existingToken) {
             setError(e instanceof Error ? e.message : 'Authentication failed');
             setStatus('unauthenticated');
@@ -175,40 +142,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStatus('loading');
       try {
         const nest = await ensureNestTelegramSession(fields);
-        if (!nest.ok) {
-          const keys =
-            fields && typeof fields === 'object' ? Object.keys(fields) : [];
-          console.error('[Auth] Browser ensureNestTelegramSession failed', {
-            reason: nest.reason,
-            payloadKeys: keys,
-          });
-          throw new Error('Could not sync with the server.');
-        }
-
-        try {
-          await exchangeTelegramWidgetForSession(fields);
-        } catch (baErr) {
-          console.warn('[Auth] Better Auth telegram signin failed (non-fatal)', {
-            err: baErr,
-            message:
-              baErr instanceof Error ? baErr.message : String(baErr ?? ''),
-          });
-        }
+        if (!nest.ok) throw new Error('Could not sync with the server.');
 
         await refreshProfile();
       } catch (e) {
-        console.error('[Auth] signInWithTelegramBrowser failed', {
-          message: e instanceof Error ? e.message : String(e),
-          name: e instanceof Error ? e.name : typeof e,
-          stack: e instanceof Error ? e.stack : undefined,
-          cause:
-            e instanceof Error && 'cause' in e
-              ? (e as Error & { cause?: unknown }).cause
-              : undefined,
-        });
         setError(e instanceof Error ? e.message : 'Login failed');
         setStatus('unauthenticated');
       }
+    },
+    [refreshProfile],
+  );
+
+  const signInWithEmailPassword = useCallback(
+    async (email: string, password: string) => {
+      setError(null);
+      setStatus('loading');
+      const result = await loginWithEmailPassword(email.trim(), password);
+      if (!result.ok) {
+        setError(result.message);
+        setStatus('unauthenticated');
+        return;
+      }
+      await refreshProfile();
     },
     [refreshProfile],
   );
@@ -219,6 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isTelegramMiniApp,
       error,
       signInWithTelegramBrowser,
+      signInWithEmailPassword,
       refreshProfile,
       signOut,
       isAuthenticated,
@@ -229,6 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isTelegramMiniApp,
       error,
       signInWithTelegramBrowser,
+      signInWithEmailPassword,
       refreshProfile,
       signOut,
       isAuthenticated,
@@ -236,11 +193,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  const botName = normalizeTelegramBotUsername(
-    process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? '',
-  );
-
-  if (isLoading) {
+  /** Only block the app with a spinner until first auth resolution — not during sign-in attempts. */
+  if (!bootstrapped) {
     return (
       <AuthContext.Provider value={value}>
         <div className='fixed inset-0 z-[9999] bg-zinc-950 flex flex-col items-center justify-center p-6 text-center gap-6'>
@@ -263,54 +217,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!isAuthenticated) {
+  /** Browser: show site + navbar; use `/login` for sign-in. Mini App: full-screen until signed in or error. */
+  if (!isAuthenticated && isTelegramMiniApp) {
     return (
       <AuthContext.Provider value={value}>
-        <div className='fixed inset-0 z-[9999] bg-zinc-950 flex flex-col items-center justify-center p-8 text-center gap-10'>
-          <div className='flex flex-col items-center gap-6'>
-            <div className='w-24 h-24 rounded-3xl bg-violet-600/10 border border-violet-500/20 flex items-center justify-center text-violet-500 shadow-2xl shadow-violet-900/10'>
-              <LogIn size={48} />
-            </div>
-            <div className='flex flex-col gap-2'>
-              <h1 className='text-3xl font-black text-zinc-50 uppercase tracking-tighter'>
-                Welcome
-              </h1>
-              <p className='text-sm text-zinc-500 font-medium max-w-[240px] leading-relaxed'>
-                Sign in with Telegram to access your premium library.
-              </p>
-            </div>
-          </div>
-
-          <div className='w-full max-w-xs flex flex-col gap-4'>
-            {isTelegramMiniApp ? (
-              <div className='p-4 rounded-2xl bg-red-500/5 border border-red-500/10 flex items-start gap-3 text-left'>
-                <AlertCircle className='w-5 h-5 text-red-500 shrink-0 mt-0.5' />
-                <div className='flex flex-col gap-1'>
-                  <p className='text-xs font-black text-red-500 uppercase'>
-                    Sync Failed
-                  </p>
-                  <p className='text-[10px] text-zinc-500 font-bold leading-tight uppercase tracking-wider'>
-                    Please restart the mini-app.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <>
-                <TelegramLoginWidget
-                  botName={botName}
-                  onAuth={signInWithTelegramBrowser}
-                />
-                <p className='text-[10px] text-zinc-600 font-bold uppercase tracking-widest mt-2'>
-                  Secure Login via Telegram
+        <div className='fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-10 bg-zinc-950 p-8 text-center'>
+          <div className='flex max-w-xs flex-col gap-4'>
+            <div className='flex items-start gap-3 rounded-2xl border border-red-500/10 bg-red-500/5 p-4 text-left'>
+              <AlertCircle className='mt-0.5 h-5 w-5 shrink-0 text-red-500' />
+              <div className='flex flex-col gap-1'>
+                <p className='text-xs font-black uppercase text-red-500'>
+                  Sync Failed
                 </p>
-              </>
-            )}
+                <p className='text-[10px] font-bold uppercase leading-tight tracking-wider text-zinc-500'>
+                  Please restart the mini-app.
+                </p>
+              </div>
+            </div>
+            {error ? (
+              <p className='rounded-full border border-red-500/10 bg-red-500/5 px-4 py-2 text-xs font-medium text-red-400'>
+                {error}
+              </p>
+            ) : null}
           </div>
-          {error && (
-            <p className='text-xs text-red-400 font-medium bg-red-500/5 px-4 py-2 rounded-full border border-red-500/10'>
-              {error}
-            </p>
-          )}
         </div>
       </AuthContext.Provider>
     );

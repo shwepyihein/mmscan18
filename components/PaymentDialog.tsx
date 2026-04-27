@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -8,9 +8,19 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { Upload, CheckCircle2, QrCode, Loader2, AlertCircle } from "lucide-react";
-import { submitPaymentRequest } from "@/api/payments";
+import {
+  Upload,
+  CheckCircle2,
+  Loader2,
+  AlertCircle,
+  Download,
+} from "lucide-react";
+import {
+  priceAmountForPurchaseRequest,
+  submitPaymentRequest,
+} from "@/api/payments";
 
 interface PaymentDialogProps {
   open: boolean;
@@ -18,9 +28,42 @@ interface PaymentDialogProps {
   packageData: {
     id: string;
     coins: number;
+    /** Raw catalog price for API. */
+    price: number;
+    /** Locale-formatted for display. */
     priceAmount: string;
     currency: string;
   } | null;
+}
+
+type MmPaymentMethod = "aya" | "kpay";
+
+const BANK_ASSETS = {
+  thaiKbank: { href: "/bank/thaiKbank.png", filename: "thai-kbank-payment.png" },
+  ayaPay: { href: "/bank/AYAPAYmm.jpeg", filename: "aya-pay-payment.jpg" },
+  kpay: { href: "/bank/KPAYmm.jpeg", filename: "kpay-payment.jpg" },
+} as const;
+
+function PaymentQrDownload({
+  href,
+  downloadName,
+}: {
+  href: string;
+  downloadName: string;
+}) {
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className="h-8 border-zinc-700 bg-zinc-900/50 text-[10px] font-bold uppercase tracking-widest text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+      asChild
+    >
+      <a href={href} download={downloadName}>
+        <Download className="mr-1.5 h-3.5 w-3.5" />
+        Download QR
+      </a>
+    </Button>
+  );
 }
 
 export function PaymentDialog({ open, onOpenChange, packageData }: PaymentDialogProps) {
@@ -28,6 +71,11 @@ export function PaymentDialog({ open, onOpenChange, packageData }: PaymentDialog
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mmPaymentTab, setMmPaymentTab] = useState<MmPaymentMethod>("aya");
+
+  useEffect(() => {
+    if (open) setMmPaymentTab("aya");
+  }, [open, packageData?.id]);
 
   const handleNext = () => setStep("upload");
   
@@ -38,8 +86,12 @@ export function PaymentDialog({ open, onOpenChange, packageData }: PaymentDialog
     setError(null);
     try {
       await submitPaymentRequest({
-        packageId: packageData.id,
-        screenshot: file
+        coinPackageId: packageData.id,
+        currency: packageData.currency,
+        priceAmount: priceAmountForPurchaseRequest({
+          price: packageData.price,
+        }),
+        invoice: file,
       });
       setStep("success");
     } catch (err) {
@@ -93,14 +145,80 @@ export function PaymentDialog({ open, onOpenChange, packageData }: PaymentDialog
 
             <div className="flex flex-col gap-4">
               <div className="bg-zinc-900/50 border border-zinc-900 rounded-2xl p-4 flex flex-col items-center gap-3">
-                <div className="relative w-32 h-32 bg-white rounded-xl p-2">
-                  <QrCode className="w-full h-full text-zinc-950" />
-                </div>
-                <div className="flex flex-col items-center">
-                  <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">KBZPay / WaveMoney</span>
-                  <span className="text-lg font-black text-zinc-100">09 777 888 999</span>
-                  <span className="text-xs font-bold text-zinc-500">U SHWE PYI HEIN</span>
-                </div>
+                {packageData.currency === "THB" ? (
+                  <div className="flex w-full flex-col items-center gap-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/bank/thaiKbank.png"
+                      alt="Thai KBank payment QR"
+                      className="h-auto w-full max-h-56 rounded-lg object-contain"
+                    />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                      Thai KBank
+                    </span>
+                    <PaymentQrDownload
+                      href={BANK_ASSETS.thaiKbank.href}
+                      downloadName={BANK_ASSETS.thaiKbank.filename}
+                    />
+                  </div>
+                ) : (
+                  <Tabs
+                    value={mmPaymentTab}
+                    onValueChange={(v) => setMmPaymentTab(v as MmPaymentMethod)}
+                    className="w-full"
+                  >
+                    <TabsList className="grid h-10 w-full grid-cols-2 gap-0 rounded-lg border border-zinc-800 bg-zinc-900/90 p-1">
+                      <TabsTrigger
+                        value="aya"
+                        className={cn(
+                          "rounded-md text-[10px] font-black uppercase tracking-widest text-zinc-500",
+                          "data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-200 data-[state=active]:shadow-none",
+                        )}
+                      >
+                        AYA Pay
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="kpay"
+                        className={cn(
+                          "rounded-md text-[10px] font-black uppercase tracking-widest text-zinc-500",
+                          "data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-200 data-[state=active]:shadow-none",
+                        )}
+                      >
+                        KPay
+                      </TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="aya" className="mt-3 flex flex-col items-center gap-2 outline-none">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src="/bank/AYAPAYmm.jpeg"
+                        alt="AYA Pay payment QR"
+                        className="h-auto w-full max-h-52 rounded-lg object-contain"
+                      />
+                      <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                        Scan with AYA Pay
+                      </span>
+                      <PaymentQrDownload
+                        href={BANK_ASSETS.ayaPay.href}
+                        downloadName={BANK_ASSETS.ayaPay.filename}
+                      />
+                    </TabsContent>
+                    <TabsContent value="kpay" className="mt-3 flex flex-col items-center gap-2 outline-none">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src="/bank/KPAYmm.jpeg"
+                        alt="KPay payment QR"
+                        className="h-auto w-full max-h-52 rounded-lg object-contain"
+                      />
+                      <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                        Scan with KPay
+                      </span>
+                      <PaymentQrDownload
+                        href={BANK_ASSETS.kpay.href}
+                        downloadName={BANK_ASSETS.kpay.filename}
+                      />
+                    </TabsContent>
+                  </Tabs>
+                )}
               </div>
 
               <div className="p-4 bg-amber-400/5 border border-amber-400/10 rounded-xl">

@@ -18,6 +18,19 @@ const config: Config = {
       },
     },
     extend: {
+      fontFamily: {
+        sans: [
+          "anime_en_font",
+          "Roboto",
+          "Noto Sans Myanmar",
+          "ui-sans-serif",
+          "system-ui",
+          "sans-serif",
+        ],
+        roboto: ["Roboto", "Noto Sans Myanmar", "sans-serif"],
+        myanmar: ["Noto Sans Myanmar", "Roboto", "anime_en_font", "sans-serif"],
+        anime: ["anime_en_font", "Roboto", "Noto Sans Myanmar", "sans-serif"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -54,7 +67,7 @@ const config: Config = {
         },
       },
       borderRadius: {
-        lg: "0.75rem", // xl as per GEMINI.md
+        lg: "0.75rem",
         md: "calc(0.75rem - 2px)",
         sm: "calc(0.75rem - 4px)",
       },

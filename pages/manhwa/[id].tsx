@@ -14,7 +14,6 @@ import {
   FREE_CHAPTER_THROUGH,
   resolveEpisodeCoinPrice,
 } from '@/lib/chapterPricing';
-import { useUserStore } from '@/store/useUserStore';
 import {
   BookOpen,
   CheckCircle2,
@@ -57,8 +56,6 @@ export default function ManhwaDetails() {
     [],
   );
   const [isChaptersListLoading, setIsChaptersListLoading] = useState(false);
-
-  const { isChapterUnlocked } = useUserStore();
 
   useEffect(() => {
     if (!router.isReady || !id) return;
@@ -138,7 +135,7 @@ export default function ManhwaDetails() {
     const price = resolveChapterPrice(ch);
     const chapterStoreId = unlockKey(ch);
 
-    if (price === 0 || isChapterUnlocked(chapterStoreId)) {
+    if (ch.isLocked !== true) {
       router.push(
         `/reader/${chapterNum}?manhwaId=${encodeURIComponent(manhwa.id)}`,
       );
@@ -335,8 +332,6 @@ export default function ManhwaDetails() {
             ) : (
               episodes.map((ch) => {
                 const price = resolveChapterPrice(ch);
-                const storeId = unlockKey(ch);
-                const isUnlocked = price === 0 || isChapterUnlocked(storeId);
                 const dateLabel = formatChapterDate(ch.publishedAt);
 
                 return (
@@ -357,7 +352,7 @@ export default function ManhwaDetails() {
                           src={coverSrc}
                           alt={`Chapter ${ch.chapterNo}`}
                           fill
-                          className={`object-cover ${!isUnlocked ? 'opacity-30' : 'opacity-60'}`}
+                          className={`object-cover ${ch.isLocked === true ? 'opacity-30' : 'opacity-60'}`}
                         />
                       ) : null}
                       <div className='absolute inset-0 flex items-center justify-center text-[11px] font-black text-zinc-500 tracking-tighter'>
@@ -390,7 +385,7 @@ export default function ManhwaDetails() {
                       </span>
                     </div>
 
-                    {isUnlocked ? (
+                    {ch.isLocked !== true ? (
                       <div className='w-10 h-10 rounded-full flex items-center justify-center text-emerald-500/50 shrink-0'>
                         {price > 0 ? (
                           <CheckCircle2 className='w-5 h-5 text-emerald-500' />

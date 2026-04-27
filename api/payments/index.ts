@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { apiClient } from '@/lib/api-client';
 import { getBackendBaseUrl } from '@/lib/backend-base-url';
 
 const API_URL = getBackendBaseUrl();
@@ -10,10 +11,17 @@ export interface PaymentPackage {
   currency: string;
 }
 
-export interface TransactionRequest {
-  packageId: string;
-  screenshot: File;
+/** POST /wallet/purchase-request (multipart `invoice` + body fields). */
+export interface PurchaseRequestPayload {
+  coinPackageId: string;
+  currency: string;
+  /** Must match catalog price for this package (no locale grouping). */
+  priceAmount: string;
+  invoice: File;
 }
+
+/** @deprecated Use `PurchaseRequestPayload` */
+export type TransactionRequest = PurchaseRequestPayload;
 
 function unwrapCoinPackages(payload: unknown): unknown[] {
   if (Array.isArray(payload)) return payload;
@@ -63,6 +71,15 @@ export function formatCoinPackageAmount(
   return pkg.price.toLocaleString(locale);
 }
 
+/** Canonical price string for `wallet/purchase-request` (matches backend catalog, no commas). */
+export function priceAmountForPurchaseRequest(
+  pkg: Pick<PaymentPackage, 'price'>,
+): string {
+  const n = Number(pkg.price);
+  if (!Number.isFinite(n)) return '0';
+  return n.toString();
+}
+
 export function formatCoinPackagePrice(
   pkg: Pick<PaymentPackage, 'price' | 'currency'>,
 ): string {
@@ -81,14 +98,17 @@ export const getCoinPackages = async (): Promise<PaymentPackage[]> => {
 export const getPaymentPackages = getCoinPackages;
 
 export const submitPaymentRequest = async (
-  request: TransactionRequest,
-): Promise<{ id: string }> => {
+  payload: PurchaseRequestPayload,
+): Promise<unknown> => {
   const formData = new FormData();
-  formData.append('packageId', request.packageId);
-  formData.append('screenshot', request.screenshot);
+  formData.append('invoice', payload.invoice);
+  formData.append('coinPackageId', payload.coinPackageId);
+  formData.append('currency', payload.currency.trim().toUpperCase());
+  formData.append('priceAmount', payload.priceAmount);
 
-  const response = await axios.post(`${API_URL}/payments/submit`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-  return response.data;
+  const { data } = await apiClient.post(
+    '/wallet/purchase-request',
+    formData,
+  );
+  return data;
 };

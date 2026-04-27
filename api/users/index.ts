@@ -88,7 +88,8 @@ function normalizeProfile(payload: unknown): UserProfile | null {
   const id = src.id ?? src._id;
   if (id == null) return null;
   const telegramId = src.telegramId ?? src.telegram_id ?? src.telegramID ?? id;
-  const coins = Number(src.coins ?? 0);
+  const coinBalanceRaw = src.coinBalance ?? src.coins ?? src.coin_balance ?? 0;
+  const coinBalance = Number(coinBalanceRaw);
   const username =
     typeof src.username === 'string'
       ? src.username
@@ -109,7 +110,7 @@ function normalizeProfile(payload: unknown): UserProfile | null {
     name,
     role,
     level,
-    coins: Number.isFinite(coins) ? coins : 0,
+    coinBalance: Number.isFinite(coinBalance) ? coinBalance : 0,
   };
 }
 
@@ -265,11 +266,15 @@ export async function ensureNestTelegramSession(
   return { ok: false, reason: 'sync_failed' };
 }
 
+export type EmailPasswordLoginResult =
+  | { ok: true; token: string }
+  | { ok: false; message: string };
+
 /** `POST /auth/login` */
 export async function loginWithEmailPassword(
   email: string,
   password: string,
-): Promise<NestTelegramSyncResult> {
+): Promise<EmailPasswordLoginResult> {
   try {
     const { data } = await apiClient.post<unknown>('/auth/login', {
       email,
@@ -278,10 +283,18 @@ export async function loginWithEmailPassword(
     applyNestAuthResponseDto(data);
     const token = pickToken(unwrapPayload(data) ?? data);
     if (token) return { ok: true, token };
-    return { ok: false, reason: 'sync_failed' };
+    return { ok: false, message: 'Invalid response from server.' };
   } catch (error) {
-    console.error('NestJS login failed:', error);
-    return { ok: false, reason: 'sync_failed' };
+    if (axios.isAxiosError(error) && error.response?.data) {
+      const d = error.response.data as Record<string, unknown>;
+      const msg = d.message ?? d.error;
+      if (typeof msg === 'string' && msg.length > 0) return { ok: false, message: msg };
+      if (Array.isArray(msg)) return { ok: false, message: msg.filter(Boolean).join(', ') };
+    }
+    return {
+      ok: false,
+      message: 'Login failed. Check your email and password.',
+    };
   }
 }
 
@@ -310,8 +323,8 @@ export interface UserTransaction {
 }
 
 /**
- * GET /users/transactions — Transaction history for current user.
- * (Adjusted to match your NestJS controller structure).
+ * GET /users/transactions — legacy list (if still exposed).
+ * Prefer `getWalletMyRequests` from `@/api/wallet` for purchase-request history.
  */
 export async function getUserTransactions(): Promise<UserTransaction[]> {
   try {
@@ -331,7 +344,16 @@ export async function getUserTransactions(): Promise<UserTransaction[]> {
   }
 }
 
+const LEGACY_BETTER_AUTH_TOKEN_KEY = 'better_auth_session_token';
+
 export function clearClientAuthSession(): void {
   setStoredAuthToken(null);
   setStoredRefreshToken(null);
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.removeItem(LEGACY_BETTER_AUTH_TOKEN_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
 }

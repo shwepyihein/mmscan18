@@ -75,7 +75,7 @@ export default function Shop() {
             </h1>
             <div className="flex items-center gap-2 bg-amber-400/10 border border-amber-400/20 px-3 py-1.5 rounded-full">
               <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
-              <span className="text-sm font-black text-amber-500">{profile?.coins || 0}</span>
+              <span className="text-sm font-black text-amber-500">{profile?.coinBalance ?? 0}</span>
             </div>
           </div>
           <p className="text-zinc-500 text-sm font-medium">
@@ -209,6 +209,7 @@ export default function Shop() {
             ? {
                 id: selectedPackage.id,
                 coins: selectedPackage.coins,
+                price: selectedPackage.price,
                 priceAmount: formatCoinPackageAmount(selectedPackage),
                 currency: selectedPackage.currency,
               }

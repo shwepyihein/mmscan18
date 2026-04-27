@@ -14,6 +14,6 @@ export interface UserProfile {
   name?: string;
   role?: string;
   level?: string;
-  /** Wallet/coins; omit from API until exposed (defaults to 0). */
-  coins: number;
+  /** Wallet balance from API (`coinBalance`). */
+  coinBalance: number;
 }

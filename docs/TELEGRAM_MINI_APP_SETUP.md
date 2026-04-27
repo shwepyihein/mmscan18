@@ -1,8 +1,8 @@
-# Telegram Mini App + Better Auth — step-by-step setup
+# Telegram Mini App — setup (Nest auth)
 
-Mini App sign-in runs **only on this Next.js app** (`/api/auth/*`). It does **not** use your Nest `NEXT_PUBLIC_API_URL` for authentication. Nest is used later for wallet/content with a JWT from Better Auth.
+Mini App and browser Telegram login **exchange `initData` / widget payload with your Nest API** (`NEXT_PUBLIC_API_URL`). This Next.js app only hosts the UI and stores the Nest access token for later calls.
 
-If you see **“Mini App sign-in failed” / “Telegram sync failed”**, work through the steps below in order.
+If you see **“Mini App sign-in failed” / “Sync failed”**, work through the steps below.
 
 ---
 
@@ -10,87 +10,61 @@ If you see **“Mini App sign-in failed” / “Telegram sync failed”**, work 
 
 1. Open [@BotFather](https://t.me/BotFather).
 2. Send `/newbot` (or use an existing bot).
-3. Copy the **bot token** → this is `TELEGRAM_BOT_TOKEN` (server-only, never expose in client code).
-4. Note the bot **username** (e.g. `my_bot`) → this is `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` (no `@`).
+3. Copy the **bot token** — Nest must use the **same** token to verify `initData` / widget signatures.
+4. Bot **username** (e.g. `my_bot`) → `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` (no `@`).
 
 ---
 
 ## 2. Link the Mini App to your site
 
-1. In BotFather, choose your bot → **Bot Settings** → **Configure Mini App** (or **Menu Button** / **Mini App URL** depending on BotFather version).
-2. Set the Mini App URL to your **HTTPS** frontend origin, e.g. `https://your-domain.com` or a path like `https://your-domain.com/` (must match how you open the app in Telegram).
+1. In BotFather: your bot → **Bot Settings** → **Configure Mini App** (or **Menu Button** / **Mini App URL**).
+2. Set the Mini App URL to your **HTTPS** frontend (this Next app), e.g. `https://your-domain.com/`.
 
-Telegram will open that URL inside the Mini App; your `initData` is only sent when the page is loaded in Telegram’s WebView.
+Telegram loads that URL in a WebView and provides `Telegram.WebApp.initData` when appropriate.
 
 ---
 
 ## 3. Domain and HTTPS
 
-- Mini Apps require a **public HTTPS** URL (not plain `http://localhost` for real Telegram clients).
-- For local development, use a tunnel (**ngrok**, **Cloudflare Tunnel**, etc.), put the **tunnel hostname** in BotFather where needed, and use that same origin in env vars below.
+- Real devices need **public HTTPS** (not plain `http://localhost`).
+- For local dev, use a tunnel (ngrok, Cloudflare Tunnel, etc.), register that host with the bot where required, and set `NEXT_PUBLIC_SITE_URL` to the same origin.
 
 ---
 
-## 4. Environment variables (this Next.js repo)
-
-Copy `.env.example` → `.env` and set at least:
+## 4. Environment variables (this repo)
 
 | Variable | Purpose |
 |----------|---------|
-| `DATABASE_URL` | PostgreSQL for Better Auth (sessions, users). |
-| `BETTER_AUTH_SECRET` | Long random secret (e.g. `openssl rand -base64 32`). |
-| `BETTER_AUTH_URL` | Public origin of **this** app, no trailing slash (e.g. `https://your-domain.com`). Same as what users open in the browser. |
-| `NEXT_PUBLIC_SITE_URL` | Usually same as `BETTER_AUTH_URL`. Used for Telegram Login Widget and URL fallbacks. |
-| `TELEGRAM_BOT_TOKEN` | From BotFather (same bot as the Mini App). |
-| `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` | Bot username **without** `@`. |
-| `NEXT_PUBLIC_API_URL` | Nest API base URL (for `/auth/me`, shop, etc.) — **not** used for Better Auth sign-in. |
+| `NEXT_PUBLIC_SITE_URL` | Origin users open in the browser; Telegram Login Widget / redirects. |
+| `NEXT_PUBLIC_API_URL` | Nest base URL — **auth** (`ensureNestTelegramSession`, `/auth/me`, wallet, reader) must work here. |
+| `NEXT_PUBLIC_API_GLOBAL_PREFIX` | Optional (e.g. `api`) if Nest uses `setGlobalPrefix('api')`. |
+| `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` | Bot username without `@`. |
+| `TELEGRAM_BOT_TOKEN` | Only if any **server-side** code in this repo needs it (most verification happens on Nest). |
 
-Restart `npm run dev` after any `.env` change.
+Restart `npm run dev` after `.env` changes.
 
 ---
 
-## 5. Database migrations
+## 5. What happens in the Mini App
 
-Apply Better Auth tables/columns:
-
-```bash
-npm run migrate:auth
-```
-
-(or `npx @better-auth/cli migrate -y`)
+1. `AuthProvider` waits for `Telegram.WebApp` and `initData`.
+2. It calls **`ensureNestTelegramSession(initData)`** (see `api/users`) — your Nest endpoint must validate `initData` and return tokens.
+3. The client stores the Nest access token and loads profile / unlocked chapters.
 
 ---
 
-## 6. Deploy / run the app
-
-- The app must be reachable at the **exact** origin in `BETTER_AUTH_URL` / `NEXT_PUBLIC_SITE_URL`.
-- In production, set the same values on your host (Vercel, Railway, etc.).
-
----
-
-## 7. What happens in the browser (Mini App)
-
-1. `AuthProvider` detects `window.Telegram.WebApp` and non-empty `initData`.
-2. It calls **better-auth-telegram** `autoSignInFromMiniApp()` (same as `signInWithMiniApp(Telegram.WebApp.initData)`), which `POST`s to `/api/auth/telegram/miniapp/signin`.
-3. The server verifies the `initData` hash and freshness; **first visit creates** the user; **later visits sign in**. Then the client refetches the Better Auth session and refreshes the Nest JWT.
-
----
-
-## 8. Checklist if sign-in still fails
+## 6. If sign-in still fails
 
 | Check | Action |
 |-------|--------|
-| Wrong or missing bot token | `TELEGRAM_BOT_TOKEN` must match the bot that owns the Mini App. |
-| Wrong bot username | `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` = username only, no `@`. |
-| `BETTER_AUTH_URL` mismatch | Must equal the origin users use (scheme + host + port if non-default). |
-| DB not migrated | Run `npm run migrate:auth`. |
-| Opening outside Telegram | Mini App `initData` is empty or invalid — open the app **from Telegram** (not a normal browser tab). |
-| Debug shows `platform: "unknown"`, empty `initData`, empty `initDataUnsafe` | Telegram never launched a Mini App session. Re-check BotFather **Mini App URL** matches your HTTPS origin; open via **Menu / Mini App button**, not “Open in external browser” or a plain `https://` bookmark. |
-| CORS / cookies | Same site origin; `credentials: "include"` is already used. |
-| Nest errors | `NEXT_PUBLIC_API_URL` issues affect **profile/wallet after** login, not the Mini App Better Auth step. |
+| Wrong bot / token on Nest | Token must match the Mini App bot. |
+| Wrong username | `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` without `@`. |
+| `NEXT_PUBLIC_API_URL` wrong | Auth requests go here; fix URL / prefix / CORS. |
+| Opening outside Telegram | `initData` empty — open from Telegram’s Mini App entry. |
+| initData expired | Close and reopen the Mini App. |
 
 ---
 
-## 9. Optional: JWT for Nest
+## 7. JWT notes
 
-After sign-in, the app stores a Better Auth JWT for `Authorization: Bearer` to Nest. Nest should validate JWKS from `{BETTER_AUTH_URL}/api/auth/jwks` — see [NEST_JWT.md](./NEST_JWT.md).
+See [NEST_JWT.md](./NEST_JWT.md) — Nest issues and verifies API tokens; this app only forwards `Authorization: Bearer`.

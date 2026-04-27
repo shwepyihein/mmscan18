@@ -1,0 +1,18 @@
+# robots.txt for ManhwammHub
+User-agent: *
+
+
+# Disallow admin and private pages
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /crawl
+Disallow: /chapters
+Disallow: /manhwas
+Disallow: /login
+Disallow: /settings
+
+# Disallow chapter reader pages (noindex handled in SEO component)
+# Allow: /read/*
+
+# Sitemap
+Sitemap: https://18.manhwammhub.com/sitemap.xml

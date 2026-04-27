@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import {
   getTelegramWebAppDebugSnapshot,
   waitForTelegramInitData,
-} from '@/lib/auth-client';
+} from '@/lib/telegram-webapp';
 import { normalizeTelegramBotUsername } from '@/lib/telegram-bot-username';
 import {
   isLocalhostHostname,
@@ -184,42 +184,22 @@ export default function Profile() {
             <p className='text-xs leading-relaxed'>{authError}</p>
             <div className='border-t border-red-500/20 pt-3 text-[11px] leading-relaxed text-zinc-400'>
               <p className='mb-2 font-semibold text-zinc-300'>
-                Sign-in runs on this Next.js app (Better Auth), not on your Nest
-                API URL.
+                Mini App login uses your Nest API (
+                <code className='text-zinc-500'>NEXT_PUBLIC_API_URL</code>) with{' '}
+                <code className='text-zinc-500'>Telegram.WebApp.initData</code>.
               </p>
               <ul className='list-inside list-disc space-y-2'>
                 <li>
-                  Server env:{' '}
-                  <code className='text-zinc-500'>DATABASE_URL</code>,{' '}
-                  <code className='text-zinc-500'>BETTER_AUTH_SECRET</code>,{' '}
-                  <code className='text-zinc-500'>TELEGRAM_BOT_TOKEN</code>{' '}
-                  (same bot as Mini App),{' '}
-                  <code className='text-zinc-500'>BETTER_AUTH_URL</code> = your
-                  site origin.
+                  Nest must verify initData with the same{' '}
+                  <code className='text-zinc-500'>TELEGRAM_BOT_TOKEN</code> as the bot.
                 </li>
                 <li>
-                  Run DB migrations:{' '}
-                  <code className='text-zinc-500'>
-                    npx @better-auth/cli migrate -y
-                  </code>{' '}
-                  (or{' '}
-                  <code className='text-zinc-500'>npm run migrate:auth</code>).
+                  If sign-in fails, check API URL, CORS, and token; reopen the Mini
+                  App (initData expires).
                 </li>
                 <li>
-                  Mini App: better-auth-telegram{' '}
-                  <code className='text-zinc-500'>autoSignInFromMiniApp</code> →{' '}
-                  <code className='text-zinc-500'>
-                    POST /api/auth/telegram/miniapp/signin
-                  </code>{' '}
-                  with <code className='text-zinc-500'>Telegram.WebApp.initData</code>.
-                  If sign-in fails, check{' '}
-                  <code className='text-zinc-500'>TELEGRAM_BOT_TOKEN</code> and reopen
-                  the Mini App (initData expires).
-                </li>
-                <li>
-                  Wallet data may call Nest (
-                  <code className='text-zinc-500'>NEXT_PUBLIC_API_URL</code>)
-                  with a Better Auth JWT — that is separate from signing in.
+                  The browser stores the Nest access token from your API for profile,
+                  reader, and wallet requests.
                 </li>
               </ul>
             </div>
@@ -234,12 +214,9 @@ export default function Profile() {
                   Continue with Telegram
                 </h2>
                 <p className='text-xs text-zinc-500'>
-                  Account is created or linked on{' '}
-                  <span className='text-zinc-400'>this site</span> via Better Auth (
-                  <code className='text-[10px] text-zinc-500'>POST /api/auth/telegram/signin</code>
-                  ). Your Nest API (
+                  Telegram signs you in against your Nest backend (
                   <code className='text-[10px] text-zinc-500'>NEXT_PUBLIC_API_URL</code>
-                  ) is used for profile/wallet after login, not for this step.
+                  ). This site stores the returned access token for API calls.
                 </p>
               </div>
               <p className='text-center text-sm font-medium text-zinc-400'>
@@ -408,7 +385,7 @@ export default function Profile() {
             </span>
             <div className='flex items-center gap-3'>
               <span className='text-5xl font-black text-zinc-50 tracking-tighter'>
-                {!isAuthenticated ? '—' : (profile?.coins ?? 0)}
+                {!isAuthenticated ? '—' : (profile?.coinBalance ?? 0)}
               </span>
               <div className='flex flex-col'>
                 <Star className='w-5 h-5 text-amber-500 fill-amber-500 mb-0.5' />

@@ -38,6 +38,7 @@ coverage/
 Thumbs.db
 
 # IDE / editor
+.gemini/
 .idea/
 .vscode/*
 !.vscode/extensions.json

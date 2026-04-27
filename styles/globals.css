@@ -2,8 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Comic/Latin font — file: `public/fonts/anime_en_font.ttf` */
+@font-face {
+  font-family: 'anime_en_font';
+  src: url('/fonts/anime_en_font.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer base {
   :root {
+    /* Myanmar + comic/Latin: browser picks glyphs per script. */
+    --font-app:
+      'Roboto', 'anime_en_font', 'Noto Sans Myanmar', ui-sans-serif, system-ui,
+      sans-serif;
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
     --card: 0 0% 100%;
@@ -55,6 +68,9 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-family: var(--font-app);
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
   }
 }
